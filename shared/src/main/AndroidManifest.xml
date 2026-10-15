@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <!-- Transfers use normal bounded workers; no foreground worker is started. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove"/>
+    <application>
+        <service android:name="androidx.work.impl.foreground.SystemForegroundService" tools:node="remove"/>
+        <service android:name="meghdad.pakkit.core.LinkService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/pakkit/" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" android:path="/pakkit/probe" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
