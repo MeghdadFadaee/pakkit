@@ -1,40 +1,58 @@
-# Pakkit — Pocket to Wrist.
+# Pakkit
 
-One standalone Wear OS app. A browser on your Wi-Fi. No companion app.
+**Pocket to Wrist.** A standalone Wear OS application for sending an APK from any browser on your Wi-Fi to your watch, then approving installation on your wrist.
 
-Pakkit starts a ten-minute receiving session on the watch, shows a private URL and QR code, and serves its own responsive web interface. Select a complete APK in the browser, send it directly to the watch, review it there, and approve the official Android installer. No ADB, root or developer options are used by the application. Play publication remains subject to permission declaration and review.
+Pack it. Send it. Wear it.
 
 ## Use
 
-1. Install Pakkit on a supported Wear OS watch. The current build is a development APK; a Play listing has not been published.
-2. Allow Pakkit to request installations using the watch’s system permission screen. If firmware does not expose this permission, use Google Play instead.
-3. Connect the watch and browser device to the same trusted Wi-Fi, then tap **Start receiving**.
-4. Scan the QR code or enter the full private link. If you enter just the address, enter the session key shown after `#` on the watch.
-5. Select one complete `.apk` up to 50 MiB. Transfer progress is shown on both devices. Review the package and approve installation on the watch.
-6. End the session or let it expire. A fresh session has a new address/key. Turn off development wireless debugging after testing; it is unrelated to Pakkit’s receiving session.
+1. Open Pakkit on a supported watch and allow it to request installations through the system settings screen.
+2. Connect the watch and browser device to the same trusted Wi-Fi.
+3. Tap **Start receiving** and scan the QR code or type the complete private link. Opening only the address lets you enter the session key separately.
+4. Select one complete `.apk` up to **50 MiB**. Watch transfer progress in the browser and on the watch.
+5. Review the package on the watch, tap **Install**, and complete Android’s system approval.
+6. End the receiving session when finished. Sessions automatically end after ten minutes or on Wi-Fi loss.
 
-Local HTTP is **not encrypted**. The private link restricts access but does not protect against an attacker on the network. Use trusted Wi-Fi, keep the link private and install only apps you trust. Guest/client-isolated networks, VPNs and browser local-network restrictions can prevent access. Internet access and a paired phone are not needed for the transfer itself.
+The local connection uses **unencrypted HTTP**. Use trusted Wi-Fi and keep the private link secret. Package inspection checks format and compatibility; it does not certify app safety. Source approval, firmware security policy and Android’s installer determine whether installation is available. Split packages and app bundles are unsupported. See [platform constraints](docs/PLATFORM.md).
+
+The current artifacts are development builds. Public distribution requires the checks in [release preparation](docs/RELEASE.md).
+
+## Project
+
+| Path         | Responsibility                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `app`        | The Wear OS application: native watch UI, bundled web interface, private storage, Wi-Fi receiving and installation |
+| `qa/fixture` | Small signed test APK, included only in instrumentation assets                                                     |
+| `web-tests`  | Optional browser test tooling; nothing from this directory ships in the app                                        |
+| `scripts`    | Emulator-only test runner and ADB helpers                                                                          |
+| `docs`       | Architecture, design, development, platform, privacy and release guidance                                          |
+
+There is one production module and one test-fixture module. Production has one explicit library dependency: ZXing Core for local QR generation. Kotlin’s standard library is supplied by the Android Gradle plugin.
 
 ## Build
 
-Java 21, Android SDK 36.1, min SDK 31, target SDK 36. Application ID `meghdad.pakkit`, version `0.2.0` / `100003`.
+Use **JDK 21**, Android SDK **36.1**, Build Tools installed by the SDK, and the Gradle wrapper. Open the project in Android Studio and run the `app` configuration on a Wear OS Emulator. Minimum Android API is 31; target is 36.
 
 ```sh
-./gradlew :wear:assembleDebug :shared:testDebugUnitTest :wear:lint :wear:bundleRelease
+./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lint :app:bundleRelease
 ```
 
-Optional mirror when Google Maven is unavailable: `-PpakkitGoogleMavenMirror=https://maven.aliyun.com/repository/google`. Review dependency provenance in your release environment.
+- APK: `app/build/outputs/apk/debug/app-debug.apk`
+- AAB: `app/build/outputs/bundle/release/app-release.aab`
+- Signing: set all four documented `PAKKIT_*` variables or leave them all unset for unsigned release output.
 
-- Debug APK: `wear/build/outputs/apk/debug/wear-debug.apk`
-- Release AAB: `wear/build/outputs/bundle/release/wear-release.aab`
-- Release signing: see [release preparation](docs/RELEASE.md). No signing secrets are included.
+If Google Maven is inaccessible in your environment, the optional build property `-PpakkitGoogleMavenMirror=https://maven.aliyun.com/repository/google` selects a mirror. Official Google Maven is the default; use a trusted dependency source for release builds.
 
-## Structure
+## Test
 
-- `wear`: foreground Wi-Fi session, local HTTP server, bundled web assets, round watch UI, source approval and PackageInstaller consent.
-- `shared`: bounded HTTP parsing, package inspection, integrity, storage, native design primitives and unit tests.
-- `qa/fixture`: harmless signed test app, staged only into instrumentation assets; never included in the consumer app.
+Routine development uses emulators. No physical watch is required.
 
-The former phone module and Data Layer/WorkManager transport have been removed. Historical companion screenshots are retained as design history; current screenshots are in `docs/screenshots/standalone`.
+```sh
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest
+python 3 scripts/test-emulators.py --watch emulator-5554 --skip-build
+python 3 scripts/test-emulators.py --watch emulator-5554 --small --skip-build
+```
 
-[Feasibility and platform evidence](docs/FEASIBILITY.md) · [Architecture/security](docs/ARCHITECTURE.md) · [Validation](docs/VALIDATION.md) · [Brand](design/README.md) · [Privacy](docs/PRIVACY.md)
+For browser tests and real Android-Emulator-to-Wear-Emulator uploads, see [development and testing](docs/DEVELOPMENT.md). Results and screenshots are generated under `app/build/reports/validation`, not checked into source control.
+
+[Architecture](docs/ARCHITECTURE.md) · [Design](docs/DESIGN.md) · [Platform](docs/PLATFORM.md) · [Privacy](docs/PRIVACY.md) · [Release](docs/RELEASE.md) · [Validation](docs/VALIDATION.md)

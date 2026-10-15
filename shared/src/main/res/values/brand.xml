@@ -1,7 +1,0 @@
-<resources>
-    <color name="pakkit_ink">#090B17</color>
-    <string name="pakkit_name">Pakkit</string>
-    <string name="brand_tagline">Pocket to Wrist.</string>
-    <string name="brand_secondary_tagline">Pack it. Send it. Wear it.</string>
-    <string name="transfer_waiting">Waiting for the watch to acknowledge this transfer</string>
-</resources>

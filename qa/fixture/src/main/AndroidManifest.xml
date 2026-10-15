@@ -1,5 +1,12 @@
+<?xml version="1.0" ?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-<uses-feature android:name="android.hardware.type.watch" android:required="true"/>
-<application android:label="Pakkit QA fixture" android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false">
-<activity android:name=".FixtureActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
-</application></manifest>
+    <uses-feature android:name="android.hardware.type.watch" android:required="true"/>
+    <application android:label="Pakkit QA fixture" android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false">
+        <activity android:name=".FixtureActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

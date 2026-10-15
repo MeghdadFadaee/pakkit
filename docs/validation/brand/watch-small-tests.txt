@@ -1,8 +1,0 @@
-
-meghdad.pakkit.wear.WatchReviewTest:.
-
-Time: 0.854
-
-OK (1 test)
-
-

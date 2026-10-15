@@ -1,16 +1,34 @@
-# Google Play release preparation
+# Release preparation
 
-Pakkit is implemented as a standalone Wear OS app. This checklist does not assert Google Play approval.
+## Artifact
 
-- Publish only `wear`: application ID `meghdad.pakkit`, version 0.2.0/code100003, standalone=true, required watch feature, min31/target36/compile36.1. The phone module is removed. Increment codes for subsequent uploads.
-- Build `./gradlew :wear:bundleRelease`. R8/resource shrinking enabled. Debug fixtures remain only in the test APK.
-- Production signing inputs: PAKKIT_KEYSTORE, PAKKIT_KEYSTORE_PASSWORD, PAKKIT_KEY_ALIAS, PAKKIT_KEY_PASSWORD. No secret/default production key is included. Without the full set the release AAB is unsigned and must be signed by the release pipeline.
-- Declare REQUEST_INSTALL_PACKAGES accurately as core, user-selected local package transfer with user-initiated installation. Submit the final standalone flow, source approval, transfer, watch review, system approval, cancellation and unsupported-state screencast. Do not claim prior companion permission eligibility automatically applies.
-- Declare connectedDevice foreground-service use for a user-started bounded local device transfer, with notification/stop controls and required evidence. Review final merged permissions. No storage, broad package visibility, Bluetooth, location or boot permissions are requested.
-- INTERNET/ACCESS_NETWORK_STATE/CHANGE_NETWORK_STATE support the requested Wi-Fi network and socket. WAKE_LOCK supports the bounded session. POST_NOTIFICATIONS is optional for receiving and approval alerts. Foreground service and connected-device foreground permissions are declared explicitly.
-- Confirm the [install-package permission policy](https://support.google.com/googleplay/android-developer/answer/12085295) and [foreground service declaration requirements](https://support.google.com/googleplay/android-developer/answer/13392821) with the actual listing. Approval is not guaranteed.
-- Add real developer/support identity and hosted privacy policy. Reconcile Data safety with PRIVACY.md and the final binary. No backend/analytics is used, but system installation verification is controlled by Android.
-- Use genuine current standalone web and round-watch screenshots. Explain trusted same-Wi-Fi requirement, unencrypted local HTTP, source approval, complete APK limit, device/firmware restrictions and final Android consent. Avoid universal “all APKs” or encrypted/private-network security guarantees.
-- Test fresh Play-delivered source approval on Watch7 firmware/regions, screen-off receiving, blocked sources, browser local-network permission, guest/client-isolated networks, user stop, session expiry, interrupted upload, process death, battery and accessibility. Record browser/device versions. Full Safari/iOS/Firefox/Windows/Linux coverage remains required.
-- Recheck target SDK, Wear quality and developer verification requirements at submission. Target37 needs runtime ACCESS_LOCAL_NETWORK implementation/testing before adoption; current target36 follows Android’s implicit local network access rules.
-- Run internal/closed testing and Play pre-launch/review. Do not promote until VALIDATION.md gates are met and restricted-permission/foreground-service declarations are accepted.
+Publish the app module’s Wear OS AAB: application ID `meghdad.pakkit`, version 0.3.0/code 100004, min 31/target 36/compile 36.1. It declares required watch hardware and standalone=true. Increment versionCode for each upload. R 8 and resource shrinking are enabled.
+
+```sh
+./gradlew :app:bundleRelease
+```
+
+Output: app/build/outputs/bundle/release/app-release.aab. Production signing uses PAKKIT_KEYSTORE, PAKKIT_KEYSTORE_PASSWORD, PAKKIT_KEY_ALIAS and PAKKIT_KEY_PASSWORD. Set all four; incomplete/blank signing configuration fails clearly. With all unset, the bundle is unsigned and must be signed through the release pipeline. Keep keys and passwords outside source control. Application ID and private review schema are stable across updates; source class/package refactoring does not require data migration.
+
+## Runtime permission surface
+
+| Permission                                               | Use                                                                       |
+| -------------------------------------------------------- | ------------------------------------------------------------------------- |
+| INTERNET                                                 | Local listener and HTTP responses                                         |
+| ACCESS_NETWORK_STATE / CHANGE_NETWORK_STATE              | Request/watch the Wi-Fi network and handle connectivity lifecycle         |
+| WAKE_LOCK                                                | Timed partial CPU lock during a receiving session                         |
+| FOREGROUND_SERVICE / FOREGROUND_SERVICE_CONNECTED_DEVICE | Explicit local receiving service with stop action                         |
+| REQUEST_INSTALL_PACKAGES                                 | Watch-initiated system installation after review                          |
+| POST_NOTIFICATIONS                                       | Optional session/approval alerts; in-app consent remains usable if denied |
+
+No package-visibility queries, broad storage, location, Bluetooth, boot receiver or unrestricted installed-app enumeration is required. Inspect merged release permissions and verify fixture/test assets are absent. Release runtime dependencies are ZXing Core and the Kotlin standard library with its annotations dependency; browser development tools are separate.
+
+## Publication gates
+
+1. Complete unit/native/browser checks in DEVELOPMENT.md and the hardware-specific matrix in VALIDATION.md.
+2. Submit REQUEST_INSTALL_PACKAGES as core local package receipt plus user-initiated installation, with source approval, transfer, watch review, system consent, denial and cancellation evidence. [Permission policy](https://support.google.com/googleplay/android-developer/answer/12085295).
+3. Submit the connectedDevice foreground-service declaration and required demonstration. [Foreground-service requirements](https://support.google.com/googleplay/android-developer/answer/13392821).
+4. Provide real developer/support identity, hosted privacy policy, Data safety answers, content rating, audience/ads declarations and current screenshots. Generate screenshots from the product; do not commit development artifacts as source assets.
+5. Describe trusted same-Wi-Fi, unencrypted HTTP, complete APK limit, source approval and firmware/package restrictions accurately. Do not promise universal compatibility, malware certification, silent installation or guaranteed permission approval.
+6. Recheck target API, Wear app quality and developer-verification requirements against current Play Console guidance. Target 37 requires explicit local-network permission implementation/testing.
+7. Run internal/closed testing and Play review before public promotion. Successful development/emulator tests do not constitute Google Play acceptance.

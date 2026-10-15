@@ -1,3 +1,0 @@
-<resources><style name="Theme.Pakkit.Wear" parent="android:style/Theme.Material.NoActionBar">
-<item name="android:fontFamily">sans</item><item name="android:colorAccent">#BAA6FF</item><item name="android:windowBackground">#090B17</item><item name="android:windowLightStatusBar">false</item><item name="android:windowSplashScreenBackground">#090B17</item><item name="android:windowSplashScreenAnimatedIcon">@drawable/pakkit_icon</item>
-</style></resources>

@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Pakkit — Pocket to Wrist.</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true"></div>
+    <div class="shell">
+      <header>
+        <a class="wordmark" href="/" aria-label="Pakkit home"
+          ><span class="brand-icon" aria-hidden="true"
+            ><svg viewBox="0 0 40 40" fill="none">
+              <path d="M9 20L20 25L31 20V31L20 36L9 31Z" fill="#C9B8FF" />
+              <path d="M20 25V36M9 20L20 15L31 20" stroke="white" stroke-width="1.3" />
+              <path
+                d="M9 20L3 16L14 11L20 15L26 11L37 16L31 20L37 24L26 29L20 25L14 29L3 24Z"
+                fill="#9CF1E4"
+              />
+              <rect
+                x="17"
+                y="3"
+                width="10"
+                height="10"
+                rx="3"
+                transform="rotate(20 22 8)"
+                fill="white"
+              /></svg></span
+          >Pakkit<span class="brand-dot">.</span></a
+        >
+        <div class="connection">
+          <span></span><span id="connection">Connecting to your watch</span>
+        </div>
+        <button id="theme" class="icon-button" aria-label="Change color theme">◐</button>
+      </header>
+      <main>
+        <section class="intro">
+          <p class="eyebrow">A LITTLE MAGIC. RIGHT ON YOUR WRIST.</p>
+          <h1>Pocket<br />to <em>Wrist.</em></h1>
+          <p class="lede">
+            Your favorite apps, with a shorter journey.<br />One watch. Any browser. All yours.
+          </p>
+          <div class="parcel-stage" aria-hidden="true">
+            <div class="orbit orbit-one"></div>
+            <div class="orbit orbit-two"></div>
+            <svg class="parcel" viewBox="0 0 360 340" fill="none">
+              <defs>
+                <linearGradient
+                  gradientUnits="userSpaceOnUse"
+                  id="left"
+                  x1="90"
+                  y1="150"
+                  x2="220"
+                  y2="290"
+                >
+                  <stop stop-color="#45E8EF" />
+                  <stop offset=".52" stop-color="#7851FF" />
+                  <stop offset="1" stop-color="#B676FF" />
+                </linearGradient>
+                <linearGradient
+                  gradientUnits="userSpaceOnUse"
+                  id="right"
+                  x1="175"
+                  y1="150"
+                  x2="290"
+                  y2="280"
+                >
+                  <stop stop-color="#C784FF" />
+                  <stop offset=".6" stop-color="#FF91BB" />
+                  <stop offset="1" stop-color="#FFC38B" />
+                </linearGradient>
+                <linearGradient
+                  gradientUnits="userSpaceOnUse"
+                  id="lid"
+                  x1="85"
+                  y1="95"
+                  x2="220"
+                  y2="175"
+                >
+                  <stop stop-color="#90F4F2" />
+                  <stop offset="1" stop-color="#A786FF" />
+                </linearGradient>
+                <linearGradient
+                  gradientUnits="userSpaceOnUse"
+                  id="tile"
+                  x1="160"
+                  y1="40"
+                  x2="225"
+                  y2="110"
+                >
+                  <stop stop-color="#77F3EF" />
+                  <stop offset="1" stop-color="#9B61FF" />
+                </linearGradient>
+              </defs>
+              <path d="M99 166L180 198V285L99 250Z" fill="url(#left)" />
+              <path d="M180 198L262 166V250L180 285Z" fill="url(#right)" />
+              <path d="M99 166L180 132L262 166L180 201Z" fill="#302252" />
+              <path
+                d="M99 166L56 137Q52 133 58 130L138 98L180 132Z"
+                fill="url(#lid)"
+                stroke="#B5FFFF"
+              />
+              <path
+                d="M180 132L223 99L301 131Q308 134 302 139L262 166Z"
+                fill="url(#right)"
+                stroke="#FFE1DF"
+              />
+              <path
+                d="M99 166L180 201L139 231L58 196Q52 192 58 188Z"
+                fill="url(#lid)"
+                stroke="#BDFFFF"
+              />
+              <path
+                d="M180 201L262 166L302 188Q308 192 302 196L221 231Z"
+                fill="url(#right)"
+                stroke="#F3D5FF"
+              />
+              <g class="app-tile">
+                <rect
+                  x="160"
+                  y="33"
+                  width="62"
+                  height="72"
+                  rx="15"
+                  transform="rotate(24 190 70)"
+                  fill="url(#tile)"
+                  stroke="#D8D3FF"
+                  stroke-width="2"
+                />
+                <path d="M176 64L188 60L201 70L190 75L176 64Z" fill="white" opacity=".8" />
+              </g>
+              <path d="M69 86L72 78L75 86L83 89L75 92L72 100L69 92L61 89Z" fill="#87F6E3" />
+              <path d="M284 69L287 61L290 69L298 72L290 75L287 83L284 75L276 72Z" fill="#BA9BFF" />
+              <circle cx="278" cy="246" r="3" fill="#77EFD8" /></svg
+            ><span class="stage-caption">PACK IT. SEND IT. WEAR IT.</span>
+          </div>
+        </section>
+        <section class="transfer-card" aria-labelledby="card-title">
+          <div class="card-top">
+            <span class="pill">DIRECT TO YOUR WATCH</span
+            ><span class="private-label">↗ On your Wi-Fi</span>
+          </div>
+          <h2 id="card-title">A new home<br />for your next app.</h2>
+          <p class="card-description">Choose a compatible APK. We’ll take it from here.</p>
+          <form id="access-form" hidden>
+            <label for="access">Private session key</label>
+            <p>Scan the QR code or enter the key after # in your watch’s link.</p>
+            <input id="access" autocomplete="off" spellcheck="false" required /><button
+              class="primary"
+              type="submit"
+            >
+              Connect to watch
+            </button>
+          </form>
+          <div id="dropzone" class="dropzone">
+            <div class="upload-symbol" aria-hidden="true">↑</div>
+            <strong>Drop a little possibility.</strong
+            ><span>Drag your APK here, or choose a file below.</span
+            ><button id="choose" class="primary" type="button">
+              Choose an APK <span aria-hidden="true">↗</span></button
+            ><input
+              id="file"
+              type="file"
+              accept=".apk,application/vnd.android.package-archive"
+              hidden
+            /><small>Single .apk file · up to 50 MiB</small>
+          </div>
+          <div id="selection" hidden>
+            <div class="file-row">
+              <div class="file-icon" aria-hidden="true">◇</div>
+              <div><strong id="filename"></strong><small id="filesize"></small></div>
+              <button id="remove" class="icon-button" aria-label="Remove selected file">×</button>
+            </div>
+            <button id="send" class="primary" type="button">
+              Send to my watch <span aria-hidden="true">→</span>
+            </button>
+          </div>
+          <div id="progress-panel" hidden>
+            <div class="progress-heading">
+              <strong id="progress-title">On its way.</strong><span id="percentage">0%</span>
+            </div>
+            <progress id="progress" max="100" value="0" aria-label="APK upload progress"></progress>
+            <p id="progress-detail">Keep this page open while your app travels.</p>
+            <button id="cancel" class="secondary" type="button">Cancel transfer</button>
+          </div>
+          <div id="result" hidden>
+            <div id="result-icon" aria-hidden="true">✓</div>
+            <h3 id="result-title">Over to your wrist.</h3>
+            <p id="result-detail">Review the app and confirm installation on your watch.</p>
+            <button id="again" class="secondary" type="button" hidden>Choose another APK</button>
+          </div>
+          <p id="message" role="status" aria-live="polite"></p>
+          <div class="consent-note">
+            <span aria-hidden="true">✧</span>
+            <p>
+              Your watch. Your call.<br /><span
+                >Nothing installs until you approve it on your watch.</span
+              >
+            </p>
+          </div>
+        </section>
+      </main>
+      <section class="journey" aria-label="How it works">
+        <div>
+          <span>01</span>
+          <p><strong>Pick your app.</strong><br />A complete APK you trust.</p>
+        </div>
+        <div>
+          <span>02</span>
+          <p><strong>Send it over.</strong><br />Straight across your Wi-Fi.</p>
+        </div>
+        <div>
+          <span>03</span>
+          <p><strong>Make it yours.</strong><br />Approve it on your wrist.</p>
+        </div>
+      </section>
+      <footer>
+        <span>Pakkit <span class="muted">/ A lighter way to wear your apps.</span></span
+        ><span>Local HTTP session · trusted Wi-Fi only <span id="expiry"></span></span>
+      </footer>
+    </div>
+  </body>
+</html>

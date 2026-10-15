@@ -1,0 +1,14 @@
+{
+  "name": "pakkit-web-tests",
+  "private": true,
+  "scripts": {
+    "test": "node browser.test.cjs",
+    "test:emulator": "node emulator.test.cjs",
+    "format:check": "prettier --check \"../app/src/main/assets/web/*\" \"*.cjs\"",
+    "format": "prettier --write \"../app/src/main/assets/web/*\" \"*.cjs\""
+  },
+  "devDependencies": {
+    "playwright": "1.62.1",
+    "prettier": "3.6.2"
+  }
+}

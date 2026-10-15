@@ -1,35 +1,45 @@
-# Standalone architecture and security
+# Architecture
 
-## Components and flow
+Pakkit is a single Android application for Wear OS. The watch hosts both the native review/install experience and a static HTML/CSS/JavaScript interface delivered to a browser over local Wi-Fi.
 
-WatchActivity → explicit Start receiving → ReceiveService → Wi-Fi network request → private IPv4 listener → private URL/QR → browser HTML/CSS/JS from watch → authenticated raw APK POST → bounded private file → Android archive inspection → ready state → watch Install → PackageInstaller → system consent → result receiver → browser status.
+## Ownership
 
-`shared` contains protocol/inspection/storage/design code. `wear` owns the server and installer. The phone module, Play Services Data Layer and WorkManager have been removed. No Google services runtime, backend, account, mDNS or WebView is required. ZXing Core encodes the QR locally.
+| Package    | Responsibility                                                                               |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| `ui`       | WatchActivity, round scrolling, status glyphs and watch design tokens                        |
+| `transfer` | Receiving state, Wi-Fi service, local HTTP endpoint, framing and bounded upload body         |
+| `apk`      | APK metadata, package inspection, compatibility/space/integrity rules and typed review state |
+| `data`     | PackageStore: one staged APK and its durable review/installation state                       |
+| `install`  | ApkInstaller, validated system callback and pending system approval intent                   |
 
-## Session ownership
+The native UI composes Android platform views. The web app is served directly from `app/src/main/assets/web`; there is no frontend build step, CDN, WebView, account, backend or internet requirement for transfer. The only explicit runtime library is ZXing Core. A separate Gradle application under `qa/fixture` supplies a signed test APK exclusively to the instrumentation APK.
 
-The user starts a connectedDevice foreground service while WatchActivity is visible. Wi-Fi is requested for up to 25 seconds; absent connectivity yields a recoverable message. A socket binds exclusively to the chosen Wi-Fi private IPv4 address and ephemeral port. The service is never exported, restarted automatically or started at boot. The ten-minute deadline starts at user initiation; a timed CPU wake lock covers the session without keeping the screen on. Losing that network ends the session. Stop closes accepted sockets, shuts down the bounded worker pool, unregisters the network callback, removes the URL and releases power resources.
+## Receiving lifecycle
 
-The browser may continue watching installation results while the session remains active. Ending the network session does not cancel an already committed Android installation or delete a pending user review. A completed upload remains eligible for review for 24 hours; expired packages are removed when the app next opens. This is lazy cleanup, not a guaranteed background deletion deadline. Partial and rejected uploads are deleted immediately. Reboot/process death requires a new receiving session. No resume tokens are persisted for transfer recovery.
+WatchActivity starts ReceiveService only after an explicit action. The non-exported connectedDevice foreground service owns the notification/stop action, a requested Wi-Fi network, a timed partial CPU wake lock and a ten-minute deadline. It waits for link properties and binds LocalHttpServer to that network’s private IPv4 address and an ephemeral port. Network loss or address change ends the session. START_NOT_STICKY and absence of boot receivers prevent automatic resurrection.
 
-## HTTP boundary
+LocalHttpServer owns the listener, two workers, four queued connections, tracked sockets, HTTP routing and one streamed upload. Service teardown closes the listener and accepted sockets, stops workers, unregisters the Wi-Fi callback, removes callbacks and releases the CPU lock. The display is not held awake. The session can continue while the display sleeps, subject to firmware and OS constraints.
 
-- Independent 192-bit SecureRandom URL-safe key per session, in the URL fragment so the initial HTTP request does not include it. JS removes the fragment from visible history after loading, keeps it only in memory and sends an Authorization bearer header for APIs. Reload without the key requires re-entering it or rescanning.
-- All content is local. Strict self-only script/style/connect CSP, no framing, no referrer, no cache, no MIME sniffing, no CORS or external fonts/trackers.
-- Exact Host check protects against DNS rebinding. Upload requires the watch page’s exact Origin and bearer token. No browser install/cancel-install endpoint exists.
-- Parser limits headers to 8 KiB and lines to 4 KiB, rejects duplicate headers, invalid framing, transfer encoding, expectations and unsupported methods. Each socket serves one request then closes. Only fixed public asset routes are served; there is no user-controlled filesystem lookup.
-- Raw octet-stream POST with positive Content-Length <=50 MiB. No multipart buffering, user filenames or extraction into filesystem paths. UUID private filename. One upload at a time; another review must be dismissed/completed first. Free-space preflight, streamed SHA-256, 64 KiB buffer, ZIP expansion/entry limits, full-package/split and self-update rejection, SDK/ABI/storage checks.
-- Two workers, four queued connections, 15-second read inactivity deadline and hard session lifetime. CPU/memory/storage are bounded. Early rejected large requests may be observed by a browser as a connection error because the server intentionally does not consume an unauthorized body.
-- Progress is bytes actually read on the watch and bytes sent by browser XHR. 100% sent changes to verification wording and never implies installation. Installation success appears only after STATUS_SUCCESS.
+`Receiving` holds an immutable, volatile snapshot in memory. Updates are tagged with the owning service instance, so a stopped session’s workers cannot change a later session. UI notifications are coalesced onto the main thread and observers are removed on pause. Private links and byte counters are never written to preferences. Process death invalidates the session; the user starts a fresh one.
 
-## Trust model
+## Durable package state
 
-Local HTTP is unencrypted. Link secrecy, Host/Origin checks and SHA-256 do not stop an active LAN attacker, protect against passive capture, or authenticate the server with a certificate. Use a trusted private Wi-Fi and keep the private URL secret. Anyone holding the link can submit a package, but only an explicit watch action can request its installation and Android requires consent. The app does not claim malware scanning or universal app compatibility. Source approval and system restrictions remain authoritative.
+PackageStore retains one PendingApk: UUID, creation time, inspected metadata, an InstallState, detail and optional installer session ID. It preserves a stable private storage schema across application updates. All writers share a lock; staging refuses replacement of an existing review, and updates require the current package ID. Dismissed reviews cannot be resurrected by late callbacks.
 
-ReceiveService has INTERNET, ACCESS_NETWORK_STATE, CHANGE_NETWORK_STATE, WAKE_LOCK and foreground-service permissions; these support the explicit Wi-Fi session. REQUEST_INSTALL_PACKAGES is limited to the watch. Optional notification permission enables visible receiving/approval alerts; denying it does not authorize hidden background starts or bypass the in-app consent flow. The system may still expose the running foreground service in its task UI.
+Files use app-private UUID filenames. Complete APKs remain eligible for review for 24 hours. Launch cleanup removes expired reviews and old unreferenced files. Partial/rejected uploads are deleted in a finally block. Installation success or dismissal deletes the staged APK. Expiry is an eligibility deadline with lazy disk cleanup, not a scheduled background deletion promise.
 
-## Installation state
+## HTTP and trust
 
-`LocalInstall.status` writes watch-local ready/installing/confirm/installed/failed state. Store persists the current package/review across activity recreation. Session callbacks validate job and session IDs in a non-exported receiver. The pending system intent is kept in process or carried by the app’s immutable notification PendingIntent; interrupted approval can be retried. Installation re-hashes the private file and rechecks compatibility before writing a PackageInstaller session. Dismiss deletes the staged package. Success deletes it and cancels the consent notification.
+Each session generates a 192-bit random key embedded in the private URL fragment. JavaScript removes it from visible history after page load and keeps it in memory for Authorization headers. A reload without the fragment requires the key again. A fixed asset allowlist prevents filesystem traversal. APIs require the key; uploads also require the exact Origin. Exact Host validation resists DNS rebinding. No CORS, framing, external scripts/styles/fonts, cached responses or browser-controlled installation endpoints are enabled.
 
-No appops mutation, permission grant shell command, ADB client, root, hidden installer component, device-owner privilege, automatic installation, browser-driven installation or Pakkit self-update exists in the product.
+HttpProtocol accepts a small HTTP/1.1 subset: GET/POST, one request per connection, 8 KiB total headers, 4 KiB lines, unique headers and no chunked/Expect framing. Uploads require decimal Content-Length in 1..50 MiB and application/octet-stream. UploadBody reads exactly that length, treats truncation as failure and reports progress at most four times per second. A 64 KiB buffer writes the private file while computing SHA-256. Storage reserve and bounded ZIP/manifest inspection precede review. SDK, ABI, complete-package and self-update checks are centralized in the APK package.
+
+Local HTTP is unencrypted. Link secrecy and Host/Origin/hash checks do not protect against a LAN observer or active attacker. Use a trusted network. Possession of the link allows file submission, while watch review and the Android installer remain separate consent boundaries.
+
+## Installation
+
+InstallState progresses from READY to INSTALLING, then CONFIRM when Android requires user action, and finally INSTALLED or FAILED. ApkInstaller runs off the main thread only after the watch’s Install action. It rechecks source trust, expiry, private-file digest and compatibility before creating a MODE_FULL_INSTALL session with USER_ACTION_REQUIRED. It never bypasses source approval, verification or system consent.
+
+The explicit mutable PendingIntent targets a non-exported InstallReceiver. The receiver requires the active package ID, a non-null matching session ID and an installation/confirmation state. A pending action exposes only Android’s returned confirmation intent, through the watch UI or an immutable notification PendingIntent. State changes refresh the UI through PackageStore preferences; the receiver does not hold an Activity reference. Interrupted confirmation can be retried.
+
+Optional notification denial leaves the in-app consent flow usable. Firmware that cannot expose usable source approval or installation consent is unsupported for external installs and directs users to Google Play. Read PLATFORM.md and RELEASE.md before making distribution claims.

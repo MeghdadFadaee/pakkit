@@ -1,9 +1,0 @@
-
-meghdad.pakkit.wear.LocalReceiveTest:.
-meghdad.pakkit.wear.WatchReviewTest:.
-
-Time: 1.492
-
-OK (2 tests)
-
-

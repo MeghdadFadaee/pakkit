@@ -1,37 +1,48 @@
-# Standalone validation — October 15, 2026
+# Validation
 
-Version 0.2.0 / 100003. The consumer app is standalone; old companion test results in `validation/brand` and older screenshots are historical evidence only.
+Routine validation uses a Wear OS Emulator and an Android Emulator browser. Hardware is reserved for final compatibility and power testing. This document distinguishes completed automated coverage from release requirements.
 
-## Automated coverage
+## Reproducible checks
 
-- 13 shared JVM tests: six bounded-stream/expiry/ABI rules, three semantic contrast checks, four HTTP parsing/authentication/size tests. Results: `shared/build/test-results/testDebugUnitTest`.
-- Two watch instrumentation tests on the Wear OS API37 round emulator: actual Wi-Fi socket GET/status/raw APK POST; missing-token and cross-origin rejection; invalid APK deletion; duplicate upload refusal; verified fixture metadata; no automatic PackageInstaller session; listener closes and private URL clears at explicit stop. The separate round-review test verifies 48dp actions are reachable and receipt does not create an installation session.
-- The emulator needed its virtual Wi-Fi enabled and associated with AndroidWifi. Initial failures while Wi-Fi was disabled were environmental. A repeated run exposed an HTTP test-client bug: reading until EOF could observe a reset after an intentionally early rejected request; the test now reads the response’s exact Content-Length. Final results are saved in `validation/standalone/watch-tests.txt`.
-- Debug APK, instrumentation APK, optimized release AAB, shared unit tests and Android lint build successfully. Lint has zero errors; remaining warnings concern SDK/library update suggestions and optional KTX/style changes. Release bundle is unsigned unless production signing inputs are supplied.
+See DEVELOPMENT.md for the commands and environment setup. Results are generated under app/build rather than committed. Current architecture: one production Android module (`app`) and the instrumentation-only signed fixture (`qaFixture`).
 
-## Physical Galaxy Watch 7
+| Check                    | Scope                                                                                                                                                                                                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| JVM tests                | Bounded copy/digest, IDs, expiry, SDK/ABI/storage policy, strict HTTP framing/auth/length, exact upload-body reads and progress throttling, native watch contrast                                                                                                                                      |
+| Wear instrumentation     | Signed archive inspection, self-update/invalid archive rejection, typed storage persistence/expiry, late callback rejection, changed-file rejection, official system consent, real socket upload/auth/Host/Origin/size checks, stop cleanup, stale-worker isolation, circular QR and reachable actions |
+| Small round screen       | Review controls and QR geometry at 192 dp with 1.3x text, restoring emulator configuration afterward                                                                                                                                                                                                   |
+| Browser UI               | Four widths, dark/light, private-key entry, invalid files, error/retry, watch/system-status transitions and cancellation, using actual assets with an API fixture                                                                                                                                      |
+| Android-to-Wear transfer | Chrome on Android Emulator -> actual Wi-Fi HTTP listener on Wear OS Emulator -> verified signed APK waiting for watch review                                                                                                                                                                           |
+| Release                  | Clean debug/test/release builds, Android lint, dependency and merged-manifest inspection, fixture exclusion from consumer artifacts                                                                                                                                                                    |
 
-SM-L310, Android16 firmware `L310XXS2BZF4`, full fingerprint in FEASIBILITY.md. Development ADB installed Pakkit and observed/clicked visible UI for QA. No `pm grant`, `appops set`, hidden installer, root or ADB package installation was used to install the QA fixture. Consumer code contains no ADB/debugging path.
+The install-consent test calls the same ApkInstaller used by the explicit watch action, waits for Android’s STATUS_PENDING_USER_ACTION and abandons the test session afterward. It does not grant permission or install through a shell command. Tests that require source approval use the emulator’s normal system setting; skipped assumptions are reported as incomplete validation by the test runner.
 
-1. Existing Pakkit source approval was already allowed. User reports normal prior source approval/installation without ADB, including with ADB debugging disabled. The agent did not reproduce a fresh Play-installed permission setup.
-2. Started Pakkit’s explicit receiving session on real Wi-Fi. Watch issued a private IPv4 URL and locally generated QR.
-3. Headless Chromium opened **the real watch-hosted site**, authenticated and rendered desktop1440x1100 and mobile390x844 layouts in light/dark modes. Zero JavaScript errors; no mobile horizontal overflow. Screenshots are actual product renders in `screenshots/standalone`.
-4. Browser selected our signed `qaFixture-debug.apk` (2,473,486 bytes), uploaded it through XHR to the watch’s socket and received ready. Watch persisted package `meghdad.pakkit.fixture`, correct SHA-256 and source `local-browser`. Receiving stopped at review without an installation session.
-5. Watch Install and Continue actions reached the pending system-consent flow. Subsequent InstallReceiver history recorded **installed** for that exact upload UUID, and Android’s package list confirmed the fixture. The user was interacting with the watch during this test. A separate screenshot of the system installer was not captured; the image initially taken after consent had already returned to Pakkit is not presented as system UI evidence.
-6. Repeated live HTTP checks: public page200; status without token403; wrong token403; authenticated status200; foreign-Origin upload403; invalid APK400. Recorded in `validation/standalone/live-http.json`. These checks also passed with the physical display explicitly asleep. This is a short screen-off accessibility check, not a long-duration power/Doze certification.
-7. Final QR layout centers its square in the circular safe area and sizes with screen width. ZXing decoded the actual physical screenshot after masking all pixels outside the display circle (`validation/standalone/qr-check.txt`); the watch remains scrollable for the URL, disclosure and End session action.
+Browser UI fixtures exercise interactions independently; the separate Android Emulator test proves that the actual browser/XHR path reaches the actual watch listener. These are not substituted for one another. The receiving protocol continues to have no browser-triggered installation endpoint.
 
-The temporary QA fixture was removed after verification.
+## Latest completed run
 
-No release claim is inferred solely from a successful file upload. The observed fixture installation is separate, stronger evidence for this device’s public installation route with trust already granted.
+Refactoring validation date: October 15, 2026. No physical device was accessed.
 
-## Remaining release gates
+- **19 JVM tests passed**, with zero failures/errors.
+- **14 native tests passed** on the round Wear OS API 37 emulator, with no skipped assumptions. This includes the public installer’s required-consent callback and refusal of requests after a session deadline.
+- **Two round UI tests passed again** at 192 dp / 1.3x text: reachable review actions and a decodable QR whose full square fits inside the circular bezel. Size, density and font scale were restored.
+- **13 browser UI checks passed** on Chromium 140.0.7339.16 across four viewport widths and both themes, with zero JavaScript errors.
+- **Real Android Emulator Chrome 145.0.7632.218 uploaded the signed fixture directly to the Wear OS Emulator over virtual Wi-Fi**, receiving READY review state. The test dismissed its package, ended receiving and removed its local debug forward.
+- **Clean builds succeeded** for the debug app, instrumentation APK, unit tests, lint and optimized release AAB. Lint has zero errors; three remaining warnings are SDK/Gradle/library update notices, not unused code/resources.
+- Release inspection found exactly the three bundled web assets, no fixture APK/test payload, no package-visibility queries, one exported launcher and non-exported service/installer receiver. The release dependency graph contains ZXing Core, Kotlin stdlib and its annotations dependency.
+- The unchanged Gradle distribution version is checksum-pinned to its official download. Release output is unsigned when signing inputs are absent; incomplete signing configuration fails clearly.
 
-- Fresh Play-delivered installation and source-approval flow without preexisting Pakkit trust, across supported Samsung firmware/regions and security settings. Record denial/revocation/cancellation and developer-verification behavior.
-- Google Play restricted-permission and foreground-service declaration acceptance, listing/quality review, developer identity/signing and hosted privacy policy.
-- Safari on real iOS/macOS, Firefox, Edge/Windows, Android browser and Linux coverage. The current browser run was Chromium on macOS, with mobile viewport emulation; it is not proof of all browser/platform combinations.
-- Full ten-minute expiry on hardware, repeated sessions, long screen-off/Doze, network/IP change, client isolation, local-network permissions, interrupted large upload, low storage and process death. Explicit-stop cleanup is automated; expiry is implemented but not yet a completed elapsed-time hardware test.
-- Full TalkBack/rotary/large-text/contrast review of the new receiving screen and web flow; small round physical displays. The prior review screen was tested at192dp/1.3x text, but this does not certify every new state.
-- Measured battery/thermal/memory behavior under maximum50MiB transfers and adversarial bounded connections. Locks, buffers, threads and deadlines are bounded by implementation, not a measured battery guarantee.
+Detailed XML, text logs, screenshots and browser summaries are generated under app/build/reports and app/build/test-results. They are not source assets or claims of universal hardware/browser support.
 
-Do not advertise universal firmware/APK compatibility, encrypted transport, unconditional no-setup installation, or Google Play approval.
+## Hardware-specific release matrix
+
+- Fresh Google Play delivery, source approval and system confirmation on supported Galaxy Watch 7 and other firmware/regions, without preexisting source trust or developer setup. Include denied/revoked permission and cancellation.
+- Real maximum-size transfers, interruption, ten-minute expiry, repeated sessions, IP/network changes, guest/client-isolated networks, VPNs and browser local-network permission prompts.
+- Long screen-off/Doze behavior, low battery/battery saver, charging transitions, memory/thermal behavior and measured battery consumption. Timed locks and bounded buffers alone are not measurements.
+- Actual low storage and processor/SDK/package/update conflicts; system developer verification and managed-device restrictions. The OS is the final compatibility/security authority.
+- TalkBack, rotary interaction, large font and physical small-round displays; camera scanning of QR on real displays under varied lighting.
+- Safari on iOS/macOS, Firefox, Edge/Windows, Linux browsers and Android browser variants. Emulator Chrome and desktop Chromium do not certify the whole browser matrix.
+- Minimum supported API 31 devices and supported newer OS versions. Native lint checks API usage but cannot replace that runtime matrix.
+- Google Play restricted-permission/foreground-service declarations, Wear quality review, signing/identity and hosted privacy policy.
+
+Do not claim universal APK/firmware compatibility, encrypted transport, guaranteed Google Play approval or measured power quality from emulator results.
