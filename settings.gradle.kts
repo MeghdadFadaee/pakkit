@@ -27,7 +27,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "pakkit"
-include(":app")
+// Pakkit is distributed as a standalone watch app.
 include(":shared", ":wear")
 // Test-only APK used by instrumentation. Never bundled in either consumer artifact.
 include(":qaFixture")

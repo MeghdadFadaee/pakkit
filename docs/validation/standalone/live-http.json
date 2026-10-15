@@ -1,0 +1,8 @@
+{
+  "publicPage": 200,
+  "noToken": 403,
+  "wrongToken": 403,
+  "status": 200,
+  "wrongOrigin": 403,
+  "invalidApk": 400
+}

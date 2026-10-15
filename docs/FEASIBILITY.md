@@ -1,37 +1,49 @@
-# Feasibility decision
+# Standalone feasibility decision
 
-Research date: October 15, 2026. Reference hardware: Samsung Galaxy Watch 7; no physical hardware has been verified in this workspace.
+Research and implementation: October 15, 2026. Pakkit 0.2 replaces the companion architecture.
 
-## Decision
+## Decision and evidence boundary
 
-Build a **capability-gated companion**, rather than promise a universal installer. Official APIs support file transfer and user-initiated package installation. Their presence in Android does not prove that a particular Wear OS firmware provides usable unknown-source settings and installation confirmation. Pakkit never changes security settings itself.
+Use a user-started local HTTP receiving session hosted by the watch, followed by explicit on-watch review and a public PackageInstaller session requiring user action. Receiving a file does not install it. Support is conditional on firmware exposing source approval and a functioning system installer.
 
-The desired no-debugging path is conditional: paired Android phone and watch → install Pakkit through Play on both → approve Pakkit as an install source on supported watch firmware → choose a complete compatible APK → send → review on watch → explicitly request installation → approve the system screen. Source approval is an unavoidable extra setup step where Android requires it.
+Android’s [Wear network guidance](https://developer.android.com/training/wearables/data/network-communication) explicitly supports HTTP/TCP/UDP and independent network access. This supports implementing a server using ordinary Android sockets; the documentation does not certify inbound reachability on every network. A Bluetooth-proxied internet route is not an inbound Wi-Fi listener, so Pakkit requests a Wi-Fi network and binds only its private IPv4 address. Guest-network isolation and firewalls remain outside application control.
 
-## Confirmed platform capabilities
+The [standalone app definition](https://developer.android.com/training/wearables/apps/standalone-apps) permits QR/browser alternatives without a companion phone app. The manifest now declares standalone=true. “Any device” means a supported modern browser on a reachable local network, not independence from the watch’s original OEM onboarding requirements. A Galaxy Watch 7’s initial setup requirements are separate from Pakkit’s browser support.
 
-1. The [Wearable Data Layer overview](https://developer.android.com/training/wearables/data/overview) documents app-private phone/watch communication and requires matching package names and signing certificates. The transport can use Bluetooth or encrypted cloud routing. Pakkit uses it without its own network backend, direct sockets, Bluetooth discovery permissions or accounts. [Asset synchronization](https://developer.android.com/training/wearables/data/sync) allows queued transfer when disconnected; it is not an application database. Pakkit keeps its own state and private files. Asset APIs do not provide Pakkit with an accurate network byte-progress signal.
+## Installation is a separate capability
 
-2. [PackageInstaller](https://developer.android.com/reference/android/content/pm/PackageInstaller) supports sessions and reports success, failure or pending user action. Pakkit explicitly requires user action and handles the returned confirmation intent. This general Android capability is not proof of a usable Wear installation UI on every OEM firmware.
+[PackageInstaller](https://developer.android.com/reference/android/content/pm/PackageInstaller) permits ordinary apps to create sessions with REQUEST_INSTALL_PACKAGES. Pakkit uses MODE_FULL_INSTALL and USER_ACTION_REQUIRED, handles STATUS_PENDING_USER_ACTION and starts only the returned system confirmation intent following a watch action. Android decides the final outcome. Readable signing metadata, hashes, SDK, ABI and space checks are preflight, not malware scanning or proof that an app will work on a round display.
 
-3. [PackageManager.canRequestPackageInstalls](https://developer.android.com/reference/android/content/pm/PackageManager#canRequestPackageInstalls()) reports whether the caller is trusted as an installation source. Pakkit checks this on the watch. If allowed-source settings are unavailable and source approval is absent, Pakkit blocks sending. Resolver availability is a conservative preflight, not a compatibility certification.
+[canRequestPackageInstalls](https://developer.android.com/reference/android/content/pm/PackageManager#canRequestPackageInstalls()) reports source trust. [ACTION_MANAGE_UNKNOWN_APP_SOURCES](https://developer.android.com/reference/android/provider/Settings#ACTION_MANAGE_UNKNOWN_APP_SOURCES) is the public settings route. A resolving activity alone does not prove a usable permission UI. Pakkit checks actual trust and gates session start; if approval is unavailable it explains the limit and offers Google Play. No appops changes, hidden components, privileged APIs or debugging client exist in application code.
 
-## Google Play eligibility is conditional
+### Galaxy Watch 7 evidence
 
-[Play's sensitive permissions policy](https://support.google.com/googleplay/android-developer/answer/16558241?hl=en) includes phone-to-wearable companion synchronization among permitted REQUEST_INSTALL_PACKAGES purposes. This makes the proposed purpose potentially eligible; it does **not** guarantee permission approval or listing acceptance. Core functionality must be accurately described, declared and reviewed. Pakkit requests this permission only on the watch, offers no self-update mechanism, bundles no third-party APK and never starts an installation just because a transfer arrived. A reviewer must assess the final implementation and listing.
+Reference hardware observed: SM-L310, Android 16, fingerprint `samsung/fresh7blue/fresh7bl:16/BP2A.250325.020/L310XXS2BZF4:user/release-keys`.
 
-[Wear app packaging guidance](https://developer.android.com/training/wearables/packaging) requires a separate watch artifact, watch feature declaration and form-factor versioning. Pakkit's watch app declares itself non-standalone because selecting and sending requires the phone. Both artifacts must use the same production signing identity for the Data Layer.
+The user reports that the previous Pakkit build completed installation normally without ADB, including with ADB debugging disabled. The development inspection found REQUEST_INSTALL_PACKAGES already allowed; no shell permission grant or security-setting modification was made. This is useful hardware evidence but does not independently reproduce a fresh Play-installed permission setup. See VALIDATION.md for the separately observed browser/upload/installer results. Do not generalize this result to every Samsung firmware, region or security configuration.
 
-[Current target API policy](https://support.google.com/googleplay/android-developer/answer/11926878) requires API 36 for new phone apps and API 35 for Wear OS as of August 31, 2026. Both modules target 36. Recheck Play Console requirements at submission time.
+## Lifecycle and power
 
-## Developer verification changes the promise
+A [connectedDevice foreground service](https://developer.android.com/develop/background-work/services/fgs/service-types#connected-device) fits an explicit local transfer with an external browser device. CHANGE_NETWORK_STATE is used to request Wi-Fi and meets this service type’s declared prerequisite. The foreground notification has a stop action. A timed partial wake lock keeps the CPU available without holding the display on. Wi-Fi requests and CPU lock are released at session stop, network loss, service destruction or ten-minute expiry. Nothing starts at boot; START_NOT_STICKY prevents automatic session resurrection. Process death invalidates the session and the user starts another.
 
-[Android's developer-verification guidance](https://developer.android.com/developer-verification/guides) describes regional enforcement beginning September 30, 2026. Its [FAQ](https://developer.android.com/developer-verification/guides/faq) explains an advanced flow for unverified developers that includes developer mode and a protective delay. Pakkit does not implement or recommend this flow: it conflicts with the requested no-developer-options experience. Applicability to a particular Wear firmware must be tested; do not infer a verified exemption or rollout from the generic Android guidance. Respect any system block and direct users to a supported distribution of the app.
+No continuous decorative watch animation, discovery broadcasts, cloud relay or analytics runs. Browser polling pauses while hidden. Watch byte updates are throttled to four per second. This bounds resource use but is not a battery consumption measurement; screen-off longevity, thermal and energy measurements remain release tests.
 
-## Limits and assumptions
+[Local network protections](https://developer.android.com/privacy-and-security/local-network-permission) cover incoming TCP too. At the current target SDK 36, INTERNET provides implicit local access. Before targeting 37, implement and test ACCESS_LOCAL_NETWORK runtime permission; official guidance says not to request it on lower targets. Browsers can independently require local-network permission.
 
-- **Unverified:** Galaxy Watch 7 firmware versions, region-specific security settings, actual approval activity behavior and developer-verifier enforcement. Run the physical-device matrix before advertising support.
-- **Supported intentionally:** complete single APKs up to 50 MiB. No APKM/XAPK/APKS/AAB or split installation support.
-- **Preflight only:** SDK minimum, native-library ABI, approximate space, readable signing information and integrity. These do not prove safety, runtime usability, feature availability, signature validity under all platform rules, successful update or a wearable layout. The OS makes the final install decision.
-- **No bypass:** if watch installation is unavailable, Google Play on that watch is the fallback. Pakkit does not silently enable debugging, root, hidden services or elevated privileges.
-- **Release gate:** if physical tests show the reference device cannot complete the public consent path, do not publish the installer listing as broadly compatible. Narrow support to tested firmware or reconsider the product's scope.
+## Google Play
+
+The [REQUEST_INSTALL_PACKAGES policy](https://support.google.com/googleplay/android-developer/answer/12085295?hl=en) permits file sharing/transfer/management when package receipt and user-initiated installation are core functionality. Pakkit appears aligned with that category; this is an eligibility assessment, not approval. Accurately declare the final standalone purpose in Play Console and show source approval, transfer, watch review, system consent and denial handling. Do not reuse a companion-sync justification.
+
+Declare the [foreground service use](https://support.google.com/googleplay/android-developer/answer/13392821) and provide the required demonstration. Publish only the watch artifact, with the required watch feature and standalone metadata, following [Wear packaging guidance](https://developer.android.com/training/wearables/packaging).
+
+[Android developer verification](https://developer.android.com/developer-verification/guides) can add system restrictions to external apps. Some unverified-developer flows require developer settings and a delay. Those flows conflict with the product’s setup goal; Pakkit does not bypass them. Describe the supported compatible/verified package path rather than guaranteeing installation of every APK.
+
+## Alternatives and limits
+
+- **Google Play installation:** the compliant fallback when source trust, security policy, verification or firmware blocks external installation. Pakkit cannot silently elevate itself.
+- **Trusted HTTPS relay:** could avoid LAN reachability and certificate setup, but requires a backend, retention policy, hosting cost, internet connectivity and additional privacy work. It would not fix a blocked PackageInstaller. Not implemented.
+- **Local HTTPS:** a self-signed watch certificate produces browser trust warnings; ordinary public trust cannot be issued to an arbitrary private IP without additional infrastructure. Current local HTTP avoids certificate setup, openly limits use to trusted networks and does not claim encryption.
+- **ADB/root/device-owner hacks:** excluded; they defeat the product goal or require privileges consumers do not have.
+- **Cloud APK catalog/self-updater:** excluded; no third-party catalog, bundled consumer APK or Pakkit self-update path.
+
+Current scope: private IPv4 Wi-Fi, one complete APK up to 50 MiB, one pending review, no split/APKS/APKM/XAPK/AAB support, no resumable upload. The OS performs final signature/update/verification checks. A failed firmware matrix or rejected permission declaration blocks production publication; a working upload alone does not change that decision.

@@ -1,50 +1,40 @@
-# Pakkit
+# Pakkit — Pocket to Wrist.
 
-**Pocket to Wrist.** A phone-to-Wear OS APK companion with an original luminous parcel identity, electric violet, mint and midnight themes, and explicit watch-side consent.
+One standalone Wear OS app. A browser on your Wi-Fi. No companion app.
 
-Pack it. Send it. Wear it. See [the implemented brand system](design/README.md) and the supplied [creative reference](design/brand-concept.png).
+Pakkit starts a ten-minute receiving session on the watch, shows a private URL and QR code, and serves its own responsive web interface. Select a complete APK in the browser, send it directly to the watch, review it there, and approve the official Android installer. No ADB, root or developer options are used by the application. Play publication remains subject to permission declaration and review.
 
-**Status: implemented device-validation build, not a production-certified or Play-approved release.** No debugging, root, hidden APIs, automatic installation, APK marketplace or security bypass appears in the consumer flow. Universal no-setup sideloading on Wear OS is not technically guaranteed. See [the feasibility decision](docs/FEASIBILITY.md) before making product claims.
+## Use
 
-## What is implemented
+1. Install Pakkit on a supported Wear OS watch. The current build is a development APK; a Play listing has not been published.
+2. Allow Pakkit to request installations using the watch’s system permission screen. If firmware does not expose this permission, use Google Play instead.
+3. Connect the watch and browser device to the same trusted Wi-Fi, then tap **Start receiving**.
+4. Scan the QR code or enter the full private link. If you enter just the address, enter the session key shown after `#` on the watch.
+5. Select one complete `.apk` up to 50 MiB. Transfer progress is shown on both devices. Review the package and approve installation on the watch.
+6. End the session or let it expire. A fresh session has a new address/key. Turn off development wireless debugging after testing; it is unrelated to Pakkit’s receiving session.
 
-- Cohesive vector launcher/splash/parcel artwork, themed native components, a persisted phone appearance chooser, finite motion, and a midnight round-watch interface.
-
-- Separate phone (`app`) and round-screen watch (`wear`) applications with the same application ID and distinct version codes.
-- Pakkit capability discovery over Google's Wearable Data Layer; nonce-based live capability checks and explicit selection when multiple watches are available.
-- Android's file picker, private APK storage, bounded streaming (50 MiB), archive/package inspection, signing-metadata checks, SHA-256 transfer integrity, API/ABI/storage preflight.
-- Persistent, retried work and Data Layer asset syncing. No fabricated percentages or success states. One active transfer per phone and one active received APK per watch.
-- Watch review and explicit install action, public PackageInstaller sessions with required user action, system confirmation handoff, optional approval notification, and structured installation results.
-- Hardware/firmware limitations, unsupported package formats, errors, transfer history, privacy explanation and a Google Play fallback.
+Local HTTP is **not encrypted**. The private link restricts access but does not protect against an attacker on the network. Use trusted Wi-Fi, keep the link private and install only apps you trust. Guest/client-isolated networks, VPNs and browser local-network restrictions can prevent access. Internet access and a paired phone are not needed for the transfer itself.
 
 ## Build
 
-Use Android Studio's Java 21 runtime, Android SDK 36.1, and the included Gradle wrapper. Both apps support Android API 31+ and target API 36.
+Java 21, Android SDK 36.1, min SDK 31, target SDK 36. Application ID `meghdad.pakkit`, version `0.2.0` / `100003`.
 
 ```sh
-./gradlew :app:assembleDebug :wear:assembleDebug :shared:testDebugUnitTest :app:lintDebug :wear:lintDebug
+./gradlew :wear:assembleDebug :shared:testDebugUnitTest :wear:lint :wear:bundleRelease
 ```
 
-Google Maven returned HTTP 404 in the original development environment. An **optional**, explicitly selected mirror is supported; Google's repository remains the default:
+Optional mirror when Google Maven is unavailable: `-PpakkitGoogleMavenMirror=https://maven.aliyun.com/repository/google`. Review dependency provenance in your release environment.
 
-```sh
-./gradlew :app:assembleDebug :wear:assembleDebug -PpakkitGoogleMavenMirror=https://maven.aliyun.com/repository/google
-```
+- Debug APK: `wear/build/outputs/apk/debug/wear-debug.apk`
+- Release AAB: `wear/build/outputs/bundle/release/wear-release.aab`
+- Release signing: see [release preparation](docs/RELEASE.md). No signing secrets are included.
 
-Review mirror provenance and validate dependency checksums through your trusted build environment before production distribution. Dependency versions are pinned; no dynamically versioned libraries are used.
+## Structure
 
-Open both app modules in Android Studio. Install the phone build on the phone and the watch build on a **paired** Wear OS device, using the same signing certificate. Open the watch app first and allow external installs if its firmware exposes that setting. Refresh the phone connection. A reachable watch with the install capability and source approval is required before sending.
+- `wear`: foreground Wi-Fi session, local HTTP server, bundled web assets, round watch UI, source approval and PackageInstaller consent.
+- `shared`: bounded HTTP parsing, package inspection, integrity, storage, native design primitives and unit tests.
+- `qa/fixture`: harmless signed test app, staged only into instrumentation assets; never included in the consumer app.
 
-APK outputs: `app/build/outputs/apk/debug/app-debug.apk` and `wear/build/outputs/apk/debug/wear-debug.apk`. Release bundles are produced with `:app:bundleRelease :wear:bundleRelease`. Release signing uses optional environment variables described in [RELEASE.md](docs/RELEASE.md); without them bundles remain unsigned.
+The former phone module and Data Layer/WorkManager transport have been removed. Historical companion screenshots are retained as design history; current screenshots are in `docs/screenshots/standalone`.
 
-## Development guide
-
-- `shared`: package inspection, bounded IO, protocol, persistence, workers, and visual primitives.
-- `app`: file selection, connection, file review, activity and guidance.
-- `wear`: review, unknown-source settings, installation and result receiver.
-- [Architecture and security](docs/ARCHITECTURE.md)
-- [Feasibility and official sources](docs/FEASIBILITY.md)
-- [Release preparation](docs/RELEASE.md)
-- [Validation record and physical-device checklist](docs/VALIDATION.md)
-
-Never replace a real capability, transfer result or installer result with a timed simulation. Do not introduce ADB pairing, privileged installation or security-setting automation to make an unsupported watch appear supported. Test-only emulator tooling is distinct from consumer functionality.
+[Feasibility and platform evidence](docs/FEASIBILITY.md) · [Architecture/security](docs/ARCHITECTURE.md) · [Validation](docs/VALIDATION.md) · [Brand](design/README.md) · [Privacy](docs/PRIVACY.md)

@@ -6,8 +6,6 @@ android {
     compileOptions { sourceCompatibility = JavaVersion.VERSION_11; targetCompatibility = JavaVersion.VERSION_11 }
 }
 dependencies {
-    api("com.google.android.gms:play-services-wearable:19.0.0")
-    api("androidx.work:work-runtime-ktx:2.10.1")
     api(libs.androidx.core.ktx)
     testImplementation(libs.junit)
 }

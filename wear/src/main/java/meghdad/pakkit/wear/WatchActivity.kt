@@ -25,9 +25,18 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
     private var busy = false
     private var error: String? = null
     private var renderedState = ""
+    private var qrUrl = ""
+    private var qrBitmap: android.graphics.Bitmap? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = Store(this)
+        if (!ReceiveService.active) store.prefs.edit().remove("receiveUrl").apply()
+        store.read("incoming")?.let { job ->
+            if (!TransferRules.fresh(job.optLong("created"), System.currentTimeMillis())) {
+                runCatching { store.file(job.getString("id")).delete() }; store.clear("incoming")
+            }
+        }
+        store.clean()
         acceptIntent(intent)
         refresh()
         savedInstanceState?.getInt("scroll")?.let { y -> scroll.post { scroll.scrollTo(0, y) } }
@@ -50,12 +59,12 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
         PendingApproval.activity = WeakReference(this)
         store.prefs.registerOnSharedPreferenceChangeListener(this)
         refresh()
-        io.execute { runCatching { Link.capability(this) } }
+
     }
     override fun onPause() { store.prefs.unregisterOnSharedPreferenceChangeListener(this); PendingApproval.activity = null; super.onPause() }
     override fun onDestroy() { io.shutdown(); super.onDestroy() }
     override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
-        if (key == "incoming" || key == null) runOnUiThread { refresh() }
+        if (key == "incoming" || key == null || key == "receiveState" || key == "receiveUrl" || key == "received") runOnUiThread { refresh() }
     }
     private fun dp(n: Int) = Design.dp(this, n)
     private fun line(value: String, size: Float = 14f, color: Int = colors.text, bold: Boolean = false) = Design.text(this, value, size, color, bold).apply {
@@ -115,7 +124,10 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
             gravity = Gravity.CENTER; textSize = 12f; setTextColor(colors.secondary)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         })
-        if (job == null) home() else incoming(job)
+        if (job == null) home() else {
+            incoming(job)
+            if (store.prefs.getString("receiveUrl", null) != null) button("End Wi-Fi session", false) { stopService(Intent(this, ReceiveService::class.java)); refresh() }
+        }
         error?.let { add(line(it, 13f, colors.error), 12) }
         scroll.isFocusable = true
         scroll.isFocusableInTouchMode = true
@@ -124,35 +136,65 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
         scroll.post { scroll.scrollTo(0, y) }
     }
     private fun home() {
-        parcel(54)
-        add(line("Pakkit", 25f, bold = true), 4)
-        add(line(getString(meghdad.pakkit.core.R.string.brand_tagline), 12f, colors.secondary), 5)
-        val supported = Link.installer(this)
-        val allowed = packageManager.canRequestPackageInstalls()
-        when {
-            !supported -> {
-                badge("Use Google Play")
-                add(line("This watch does not expose a system installer.", 13f, colors.secondary), 12)
-                button("Open Google Play") { play() }
+        val url = store.prefs.getString("receiveUrl", null)
+        if (url == null) {
+            parcel(54)
+            add(line("Pakkit", 25f, bold = true), 4)
+            add(line(getString(meghdad.pakkit.core.R.string.brand_tagline), 12f, colors.secondary), 5)
+        }
+        if (url != null) {
+            val received = store.prefs.getLong("received", 0)
+            val total = store.prefs.getLong("receiveTotal", 0)
+            if (total > 0) {
+                add(line("${(received * 100 / total).coerceAtMost(100)}% received", 21f, bold = true), 12)
+                add(ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    max = 100; progress = (received * 100 / total).toInt(); progressTintList = android.content.res.ColorStateList.valueOf(colors.mint)
+                }, 12)
+                add(line("Keep your browser open.", 12f, colors.secondary), 8)
+            } else {
+                if (qrUrl != url || qrBitmap == null) {
+                val matrix = com.google.zxing.qrcode.QRCodeWriter().encode(url, com.google.zxing.BarcodeFormat.QR_CODE, 420, 420,
+                    mapOf(com.google.zxing.EncodeHintType.MARGIN to 3))
+                val bitmap = android.graphics.Bitmap.createBitmap(420, 420, android.graphics.Bitmap.Config.RGB_565)
+                for (y in 0 until 420) for (x in 0 until 420) bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
+                qrUrl = url; qrBitmap = bitmap
+                }
+                add(ImageView(this).apply {
+                    setImageBitmap(qrBitmap); scaleType = ImageView.ScaleType.FIT_CENTER
+                    layoutParams = LinearLayout.LayoutParams(-1, dp((resources.configuration.screenWidthDp * .6f).roundToInt().coerceAtMost(138)))
+                    contentDescription = "QR code for your private receiving link. The full link is below."
+                }, 14)
+                add(line("Scan to send", 18f, bold = true), 12)
+                badge("Private Wi-Fi session", positive = true)
+                add(line("Use the same Wi-Fi. Session ends automatically in 10 minutes.", 12f, colors.secondary), 8)
+                add(line(url, 11f, colors.mint).apply { textDirection = View.TEXT_DIRECTION_LTR; setTextIsSelectable(true) }, 14)
+                add(line("Local HTTP · use a trusted network. Anyone with this link can send a file; only you can approve installation.", 11f, colors.secondary), 12)
             }
-            allowed -> {
-                badge("Ready to receive", positive = true)
-                add(line("Choose an APK on your phone. Review it here before installing.", 13f, colors.secondary), 12)
+            button("End session", false) { stopService(Intent(this, ReceiveService::class.java)); refresh() }
+            return
+        }
+        if (!packageManager.canRequestPackageInstalls()) {
+            badge("Allow installation")
+            add(line("Pakkit needs your permission to request installs. You approve every app on your watch.", 13f, colors.secondary), 12)
+            button("Allow installs") { settings() }
+            add(line("If your watch does not offer this permission, use Google Play. Pakkit cannot bypass its security settings.", 12f, colors.secondary), 12)
+            button("Open Google Play", false) { play() }
+        } else {
+            badge("Any device. Any browser.", positive = true)
+            add(line("Send an APK straight to your wrist. No phone app needed.", 14f, colors.secondary), 12)
+            button("Start receiving") {
+                error = null
+                runCatching { startForegroundService(Intent(this, ReceiveService::class.java)) }
+                    .onFailure { error = "Could not start receiving. Check Wi-Fi and try again."; refresh() }
             }
-            Link.settings(this).resolveActivity(packageManager) != null -> {
-                badge("One small permission")
-                add(line("Allow Pakkit to request installs. You still approve every app.", 13f, colors.secondary), 12)
-                button("Allow installs") { settings() }
-            }
-            else -> {
-                badge("Use Google Play")
-                add(line("External installation is not available on this watch’s software.", 13f, colors.secondary), 12)
-                button("Open Google Play") { play() }
+            add(line(store.prefs.getString("receiveState", "Connect your watch and browser to the same Wi-Fi.").orEmpty(), 12f, colors.secondary), 12)
+            button("Wi-Fi settings", false) {
+                runCatching { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) }
+                    .onFailure { error = "Open Wi-Fi from your watch’s Settings app."; refresh() }
             }
         }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            add(line("Optional alerts bring you back to system approval.", 12f, colors.secondary), 18)
-            button("Enable alerts", false) { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 52) }
+            button("Enable session alerts", false) { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 52) }
         }
     }
     private fun incoming(job: JSONObject) {
@@ -185,7 +227,7 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
             }
             "ready", "failed" -> {
                 if (!TransferRules.fresh(job.optLong("created"), System.currentTimeMillis())) {
-                    add(line("This APK expired. Send it again from your phone.", 13f, colors.error), 12)
+                    add(line("This APK expired. Upload it again from your browser.", 13f, colors.error), 12)
                 } else if (store.file(job.getString("id")).exists()) {
                     add(line(apk.packageName, 12f, colors.secondary), 12)
                     if (!apk.wear) add(line("Watch support is unverified. The layout may not fit.", 12f, colors.error), 10)
@@ -217,7 +259,7 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
     private fun settings() {
-        runCatching { startActivity(Link.settings(this)) }.onFailure { error="This watch does not offer that setting. Install compatible apps through Google Play."; refresh() }
+        runCatching { startActivity(LocalInstall.settings(this)) }.onFailure { error="This watch does not offer that setting. Install compatible apps through Google Play."; refresh() }
     }
     private fun install(job:JSONObject) {
         if(busy) return
@@ -241,7 +283,7 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
                 }
                 sessionId=installer.createSession(params)
                 job.put("session",sessionId)
-                Link.status(this,job,"installing","Waiting for the watch’s system installer.")
+                LocalInstall.status(this,job,"installing","Waiting for the watch’s system installer.")
                 installer.openSession(sessionId).use { session ->
                     session.openWrite("base.apk",0,file.length()).use { output -> file.inputStream().use { it.copyTo(output,64*1024) }; session.fsync(output) }
                     val callback=Intent(this,InstallReceiver::class.java).putExtra("job",job.getString("id"))
@@ -250,13 +292,13 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             } catch(e:Exception) {
                 sessionId?.let { runCatching { installer.abandonSession(it) } }
-                Link.status(this,job,"failed",e.message ?: "Could not open the system installer. Use Google Play.")
+                LocalInstall.status(this,job,"failed",e.message ?: "Could not open the system installer. Use Google Play.")
             }
             runOnUiThread { busy=false; refresh() }
         }
     }
     private fun dismiss(job:JSONObject) {
-        Link.status(this,job,"declined","Dismissed on your watch.")
+        LocalInstall.status(this,job,"declined","Dismissed on your watch.")
         store.file(job.getString("id")).delete(); store.clear("incoming"); refresh()
     }
     private fun launch(packageName:String) {

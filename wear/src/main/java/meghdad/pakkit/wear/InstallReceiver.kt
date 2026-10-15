@@ -19,9 +19,9 @@ class InstallReceiver : BroadcastReceiver() {
         when(status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 @Suppress("DEPRECATION") val confirmation=intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
-                if(confirmation==null) { Link.status(context,job,"failed","The system did not provide an approval screen."); return }
+                if(confirmation==null) { LocalInstall.status(context,job,"failed","The system did not provide an approval screen."); return }
                 PendingApproval.id=job.getString("id"); PendingApproval.intent=confirmation
-                Link.status(context,job,"confirm","Continue the system approval on your watch.")
+                LocalInstall.status(context,job,"confirm","Continue the system approval on your watch.")
                 val activity=PendingApproval.activity?.get()
                 if(activity!=null) activity.refresh()
                 val manager=context.getSystemService(NotificationManager::class.java)
@@ -36,7 +36,7 @@ class InstallReceiver : BroadcastReceiver() {
             }
             PackageInstaller.STATUS_SUCCESS -> {
                 PendingApproval.intent=null
-                Link.status(context,job,"installed","Installed on your watch.")
+                LocalInstall.status(context,job,"installed","Installed on your watch.")
                 store.file(job.getString("id")).delete()
                 context.getSystemService(NotificationManager::class.java).cancel(42)
             }
@@ -51,7 +51,7 @@ class InstallReceiver : BroadcastReceiver() {
                     PackageInstaller.STATUS_FAILURE_STORAGE -> "Your watch needs more free storage."
                     else -> "The system could not finish installing. Try again or use Google Play."
                 }
-                Link.status(context,job,"failed",detail)
+                LocalInstall.status(context,job,"failed",detail)
                 context.getSystemService(NotificationManager::class.java).cancel(42)
             }
         }

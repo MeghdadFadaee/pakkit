@@ -6,8 +6,8 @@ android {
         applicationId = "meghdad.pakkit"
         minSdk = 31
         targetSdk = 36
-        versionCode = 100002
-        versionName = "0.1.0"
+        versionCode = 100003
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     val releaseKey = providers.environmentVariable("PAKKIT_KEYSTORE").orNull
@@ -23,7 +23,7 @@ android {
     buildTypes { release { signingConfig = signingConfigs.findByName("production"); isMinifyEnabled = true; isShrinkResources = true; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "../proguard-rules.pro") } }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_11; targetCompatibility = JavaVersion.VERSION_11 }
 }
-dependencies { implementation(project(":shared")); androidTestImplementation(libs.androidx.junit); androidTestImplementation(libs.androidx.espresso.core) }
+dependencies { implementation("com.google.zxing:core:3.5.3"); implementation(project(":shared")); androidTestImplementation(libs.androidx.junit); androidTestImplementation(libs.androidx.espresso.core) }
 
 abstract class StageFixtureApk : DefaultTask() {
     @get:InputFile abstract val fixtureFile: RegularFileProperty

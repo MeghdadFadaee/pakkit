@@ -49,7 +49,7 @@ object Design {
         "light" -> false
         else -> c.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
     }
-    fun palette(c: Context): BrandPalette = if (Link.isWatch(c) || isDark(c)) BrandPalette.Dark else BrandPalette.Light
+    fun palette(c: Context): BrandPalette = if (c.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH) || isDark(c)) BrandPalette.Dark else BrandPalette.Light
     fun dp(c: Context, n: Int) = (n * c.resources.displayMetrics.density).toInt()
     fun motionAllowed(c: Context) = ValueAnimator.areAnimatorsEnabled() && !c.getSystemService(PowerManager::class.java).isPowerSaveMode
     fun shape(color: Int, radius: Float = 24f, stroke: Int? = null) = GradientDrawable().apply {
