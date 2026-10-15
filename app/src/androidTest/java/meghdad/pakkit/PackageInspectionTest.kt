@@ -7,6 +7,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import meghdad.pakkit.apk.ApkRules
 import meghdad.pakkit.apk.PackageInspector
+import meghdad.pakkit.apk.userMessage
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -14,9 +15,22 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class PackageInspectionTest : WatchTest() {
     @Test
+    fun runningOutOfSpaceHasActionableFeedbackWithoutRawPaths() {
+        val failure =
+            java.io.IOException(
+                "/data/private/file.apk",
+                android.system.ErrnoException("write", android.system.OsConstants.ENOSPC),
+            )
+        assertEquals(
+            "Free some space on your watch, then try again.",
+            failure.userMessage("Try again."),
+        )
+    }
+
+    @Test
     fun selfUpdateIsRejectedBeforeCreatingAnInstallSession() {
         val ownApk = File(context.applicationInfo.sourceDir)
-        val digest = ownApk.inputStream().use { ApkRules.copyBounded(it).second }
+        val digest = ownApk.inputStream().use { ApkRules.copyAndHash(it).second }
         val result = runCatching { PackageInspector.inspect(context, ownApk, digest) }
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("Google Play"))
@@ -31,7 +45,7 @@ class PackageInspectionTest : WatchTest() {
                 it.write("Not an app".toByteArray())
                 it.closeEntry()
             }
-            val digest = file.inputStream().use { ApkRules.copyBounded(it).second }
+            val digest = file.inputStream().use { ApkRules.copyAndHash(it).second }
             assertTrue(runCatching { PackageInspector.inspect(context, file, digest) }.isFailure)
         } finally {
             file.delete()

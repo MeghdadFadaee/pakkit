@@ -532,20 +532,6 @@ h3 {
   margin: 12px 0;
 }
 
-#access-form {
-  margin-bottom: 24px;
-}
-
-#access-form label {
-  font-size: 13px;
-}
-
-#access-form p {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
 input:not([type='file']) {
   width: 100%;
   background: var(--bg);
@@ -665,10 +651,6 @@ input:not([type='file']) {
 .connection-help p {
   font-size: 12px;
   line-height: 1.7;
-}
-
-#expiry {
-  font-variant-numeric: tabular-nums;
 }
 
 .dropzone > span,
@@ -885,4 +867,26 @@ small {
     gap: 4px;
     font-size: 11px;
   }
+}
+
+#pairing {
+  text-align: center;
+  padding: 24px 4px;
+  min-height: 230px;
+}
+#pairing-detail {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.pairing-symbol {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 20px;
+  border-radius: 18px;
+  color: var(--violet);
+  background: #9e82ff12;
+  font-size: 28px;
 }

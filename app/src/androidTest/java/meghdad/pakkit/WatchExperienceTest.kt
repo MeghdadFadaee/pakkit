@@ -104,21 +104,24 @@ class WatchExperienceTest : WatchTest() {
         val owner = Any()
         try {
             Receiving.begin(owner)
-            Receiving.update(owner) { it.copy(url = "http://10.0.2.16:8080/#test-display-link") }
+            Receiving.update(owner) { it.copy(url = "http://10.0.2.16:8787/") }
             openWatch()
             capture("scan")
-            instrumentation.runOnMainSync {
-                screen().filterIsInstance<Button>().single { it.text == "View link" }.performClick()
+            assertActionsReachable()
+            Receiving.update(owner) {
+                it.copy(
+                    browserRequest =
+                        meghdad.pakkit.transfer.BrowserAccess.Request(
+                            "test-browser",
+                            "Chrome on Android",
+                            "10.0.2.17",
+                        )
+                )
             }
             instrumentation.waitForIdleSync()
             assertActionsReachable()
-            capture("link")
-            instrumentation.runOnMainSync {
-                screen()
-                    .filterIsInstance<Button>()
-                    .single { it.text == "Back to code" }
-                    .performClick()
-            }
+            capture("browser-approval")
+            Receiving.update(owner) { it.copy(browserRequest = null) }
             Receiving.update(owner) { it.copy(total = 1000, received = 420) }
             instrumentation.waitForIdleSync()
             capture("sending")

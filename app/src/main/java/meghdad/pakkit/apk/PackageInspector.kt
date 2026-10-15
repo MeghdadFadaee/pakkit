@@ -9,28 +9,14 @@ import java.util.zip.ZipFile
 object PackageInspector {
     @Suppress("DEPRECATION")
     fun inspect(context: Context, file: File, hash: String): Apk {
-        requireUser(file.length() in 1..ApkRules.MAX_BYTES) { "Choose an APK up to 50 MB." }
+        requireUser(file.length() > 0) { "This file is empty. Choose another APK." }
         val abis = mutableSetOf<String>()
         ZipFile(file).use { zip ->
             requireUser(zip.getEntry("AndroidManifest.xml") != null) {
                 "This file is not an Android APK."
             }
-            requireUser(zip.size() < 100_000) {
-                "This file is too complex to open. Try another APK."
-            }
-            var expanded = 0L
+            // Inspect directory metadata only; never inflate the package into memory.
             zip.entries().asSequence().forEach { entry ->
-                requireUser(entry.size >= 0 && entry.size <= 128L * 1024 * 1024) {
-                    "This app is too large to unpack. Try a smaller APK."
-                }
-                expanded += entry.size
-                requireUser(expanded <= 200L * 1024 * 1024) {
-                    "This app is too large to unpack. Try a smaller APK."
-                }
-                if (entry.name == "AndroidManifest.xml")
-                    requireUser(entry.size <= 2 * 1024 * 1024) {
-                        "This file can’t be opened. Try another APK."
-                    }
                 val parts = entry.name.split('/')
                 if (parts.size >= 3 && parts[0] == "lib" && entry.name.endsWith(".so"))
                     abis += parts[1]
@@ -91,18 +77,17 @@ object PackageInspector {
         )
     }
 
-    fun checkForWatch(apk: Apk, sdk: Int, abis: Set<String>, free: Long) {
+    fun checkForWatch(apk: Apk, sdk: Int, abis: Set<String>) {
         requireUser(apk.minSdk <= sdk) {
             "This app needs a newer version of Android. Check your watch for updates."
         }
         requireUser(ApkRules.compatibleAbis(apk.abis, abis)) {
             "This version doesn’t work on your watch. Try a version made for it."
         }
-        requireSpace(apk.bytes, free)
     }
 
     fun requireSpace(bytes: Long, free: Long) {
-        requireUser(free > bytes * 3 + 20 * 1024 * 1024) {
+        requireUser(bytes > 0 && bytes <= free) {
             "Free more storage on your watch, then try again."
         }
     }

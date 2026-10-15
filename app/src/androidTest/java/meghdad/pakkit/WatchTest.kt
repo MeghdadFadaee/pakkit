@@ -34,7 +34,7 @@ abstract class WatchTest {
         val monitor = instrumentation.addMonitor(WatchActivity::class.java.name, null, false)
         context.startActivity(
             Intent(context, WatchActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         )
         activity = requireNotNull(monitor.waitForActivityWithTimeout(5000))
         instrumentation.removeMonitor(monitor)
@@ -46,7 +46,7 @@ abstract class WatchTest {
         val file = store.file(id)
         val digest =
             instrumentation.context.assets.open("fixture.apk").use { input ->
-                file.outputStream().use { ApkRules.copyBounded(input, it).second }
+                file.outputStream().use { ApkRules.copyAndHash(input, it).second }
             }
         return PendingApk(
             id,

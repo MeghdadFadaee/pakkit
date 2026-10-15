@@ -145,18 +145,12 @@
           </div>
           <h2 id="card-title">Good things<br />come in Pakkits.</h2>
           <p class="card-description">Choose an app for your watch. We’ll deliver it.</p>
-          <form id="access-form" hidden>
-            <label for="access">Connect your watch</label>
-            <p>Scan the code on your watch, or paste its full link here.</p>
-            <input
-              id="access"
-              type="password"
-              aria-label="Watch link"
-              autocomplete="off"
-              spellcheck="false"
-              required
-            /><button class="primary" type="submit">Connect to watch</button>
-          </form>
+          <div id="pairing" role="status" aria-live="polite">
+            <div class="pairing-symbol" aria-hidden="true">↗</div>
+            <h3 id="pairing-title">A quick hello</h3>
+            <p id="pairing-detail">Tap Allow browser on your watch.</p>
+            <button id="retry-connection" class="secondary" type="button" hidden>Try again</button>
+          </div>
           <ol class="steps" aria-label="Transfer steps">
             <li aria-current="step">Choose</li>
             <li>Send</li>
@@ -173,7 +167,7 @@
               type="file"
               accept=".apk,application/vnd.android.package-archive"
               hidden
-            /><small>APK files · up to 50 MB</small>
+            /><small>APK files · sent directly to your watch</small>
           </div>
           <div id="selection" hidden>
             <div class="file-row">
@@ -214,12 +208,11 @@
           ><details class="connection-help">
             <summary>About this connection</summary>
             <p>
-              Use Wi-Fi you trust. Files travel across your network without encryption. Keep your
-              watch’s link private.
+              Use Wi-Fi you trust. Files travel across your network without encryption. Approve only
+              browsers you recognize.
             </p>
           </details>
-          <span id="expiry"></span
-        ></span>
+        </span>
       </footer>
     </div>
   </body>

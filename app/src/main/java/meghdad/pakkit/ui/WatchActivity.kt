@@ -19,12 +19,13 @@ import android.widget.TextClock
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 import meghdad.pakkit.R
-import meghdad.pakkit.apk.ApkRules
 import meghdad.pakkit.apk.InstallState
 import meghdad.pakkit.apk.PendingApk
+import meghdad.pakkit.apk.userMessage
 import meghdad.pakkit.data.PackageStore
 import meghdad.pakkit.install.ApkInstaller
 import meghdad.pakkit.install.PendingApproval
+import meghdad.pakkit.transfer.BrowserAccess
 import meghdad.pakkit.transfer.ReceiveService
 import meghdad.pakkit.transfer.Receiving
 
@@ -38,31 +39,26 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
     private var busy = false
     private var error: String? = null
     private var renderedState = ""
-    private var showingLink = false
-    private var backRegistered = false
-    private val linkBack =
-        if (Build.VERSION.SDK_INT >= 33)
-            android.window.OnBackInvokedCallback {
-                showingLink = false
-                refresh()
-            }
-        else null
+    private var resumed = false
+    private var approvalLaunched: Int? = null
+    private var requestedInstallId: String? = null
     private var qrUrl = ""
     private var qrBitmap: android.graphics.Bitmap? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = PackageStore(this)
-        store.clean()
         acceptIntent(intent)
-        showingLink = savedInstanceState?.getBoolean("showingLink") ?: false
+        requestedInstallId = savedInstanceState?.getString("requestedInstallId")
+        approvalLaunched = savedInstanceState?.getInt("approvalLaunched", -1)?.takeIf { it >= 0 }
         refresh()
         savedInstanceState?.getInt("scroll")?.let { y -> scroll.post { scroll.scrollTo(0, y) } }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("scroll", scroll.scrollY)
-        outState.putBoolean("showingLink", showingLink)
+        outState.putString("requestedInstallId", requestedInstallId)
+        approvalLaunched?.let { outState.putInt("approvalLaunched", it) }
         super.onSaveInstanceState(outState)
     }
 
@@ -89,21 +85,25 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
 
     override fun onResume() {
         super.onResume()
+        resumed = true
         store.preferences.registerOnSharedPreferenceChangeListener(this)
         Receiving.observe(sessionObserver)
         refresh()
+        val requested = requestedInstallId
+        requestedInstallId = null
+        if (requested != null && packageManager.canRequestPackageInstalls()) {
+            store.pending()?.takeIf { it.id == requested }?.let { install(it) }
+        }
     }
 
     override fun onPause() {
+        resumed = false
         Receiving.removeObserver(sessionObserver)
         store.preferences.unregisterOnSharedPreferenceChangeListener(this)
         super.onPause()
     }
 
     override fun onDestroy() {
-        if (Build.VERSION.SDK_INT >= 33 && backRegistered) {
-            onBackInvokedDispatcher.unregisterOnBackInvokedCallback(requireNotNull(linkBack))
-        }
         io.shutdown()
         super.onDestroy()
     }
@@ -198,29 +198,17 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
         if (isDestroyed || isFinishing) return
         val job = store.pending()
         val live = Receiving.state
-        if (live.url == null || job != null || live.total > 0) showingLink = false
         val stateKey =
-            job?.let { "${it.id}:${it.state}" }
+            live.browserRequest?.let { "browser:${it.id}" }
+                ?: job?.let { "${it.id}:${it.state}" }
                 ?: when {
-                    showingLink && live.url != null -> "link"
                     live.total > 0 -> "uploading"
                     live.url != null -> "receiving"
                     live.active -> "connecting"
                     else -> "home"
                 }
-        if (Build.VERSION.SDK_INT >= 33) {
-            val handleBack = showingLink && job == null && live.url != null && live.total == 0L
-            if (handleBack && !backRegistered) {
-                onBackInvokedDispatcher.registerOnBackInvokedCallback(
-                    android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
-                    requireNotNull(linkBack),
-                )
-            } else if (!handleBack && backRegistered) {
-                onBackInvokedDispatcher.unregisterOnBackInvokedCallback(requireNotNull(linkBack))
-            }
-            backRegistered = handleBack
-        }
         val previousState = renderedState
+        if (stateKey != previousState) error = null
         val y = if (::scroll.isInitialized && stateKey == renderedState) scroll.scrollY else 0
         renderedState = stateKey
         scroll = RoundScrollView(this).apply { setBackgroundColor(colors.canvas) }
@@ -247,16 +235,20 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }
         )
-        if (job == null) home()
+        error?.let { add(line(it, 13f, colors.error), 12) }
+        if (live.browserRequest != null) browserRequest(live.browserRequest)
+        else if (job == null) home()
         else {
             incoming(job)
-            if (Receiving.state.url != null)
+            if (live.active) {
                 button(getString(R.string.watch_end_session), false) {
                     stopService(Intent(this, ReceiveService::class.java))
-                    refresh()
                 }
+            } else {
+                button(getString(R.string.watch_start_receiving), false) { startReceiving() }
+            }
         }
-        error?.let { add(line(it, 13f, colors.error), 12) }
+
         scroll.isFocusable = true
         scroll.isFocusableInTouchMode = true
         setContentView(scroll)
@@ -269,17 +261,31 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
             column.alpha = 0f
             column.animate().alpha(1f).setDuration(180).start()
         }
-        scroll.post { scroll.scrollTo(0, y) }
+        scroll.post {
+            scroll.scrollTo(0, y)
+            val approval = PendingApproval.intent
+            if (
+                resumed &&
+                    job?.state == InstallState.CONFIRM &&
+                    job.sessionId != null &&
+                    PendingApproval.id == job.id &&
+                    approval != null &&
+                    approvalLaunched != job.sessionId
+            ) {
+                approvalLaunched = job.sessionId
+                runCatching { startActivity(approval) }
+                    .onFailure {
+                        error = getString(R.string.watch_approval_error)
+                        refresh()
+                    }
+            }
+        }
     }
 
     private fun home() {
         val live = Receiving.state
         val url = live.url
         if (url != null) {
-            if (showingLink && live.total == 0L) {
-                showLink(url)
-                return
-            }
             if (live.total > 0) {
                 parcel(48)
                 val percent = (live.received * 100 / live.total).coerceAtMost(100)
@@ -356,11 +362,13 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
                 )
                 add(line(getString(R.string.watch_scan_to_send), 20f, bold = true), 12)
                 add(line(getString(R.string.watch_scan_description), 13f, colors.secondary), 8)
-                add(line(getString(R.string.watch_ready_for_10_minutes), 12f, colors.mint), 10)
-                button(getString(R.string.watch_view_link), false) {
-                    showingLink = true
-                    refresh()
-                }
+                add(
+                    line(url, 12f, colors.mint).apply {
+                        textDirection = View.TEXT_DIRECTION_LTR
+                        setTextIsSelectable(true)
+                    },
+                    10,
+                )
             }
             button(getString(R.string.watch_end_session), false) {
                 stopService(Intent(this, ReceiveService::class.java))
@@ -387,60 +395,49 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
         )
         if (live.active) {
             badge(getString(R.string.watch_finding_wi_fi))
-            add(line(getString(R.string.watch_connecting_description), 13f, colors.secondary), 12)
-            button(getString(R.string.watch_cancel), false) {
+            add(line(live.detail, 13f, colors.secondary), 12)
+            button(getString(R.string.watch_end_session), false) {
                 stopService(Intent(this, ReceiveService::class.java))
             }
         } else {
-            button(getString(R.string.watch_start_receiving)) {
-                error = null
-                runCatching { startForegroundService(Intent(this, ReceiveService::class.java)) }
-                    .onFailure {
-                        error = getString(R.string.watch_connection_error)
-                        refresh()
-                    }
-            }
+            button(getString(R.string.watch_start_receiving)) { startReceiving() }
             add(line(getString(R.string.brand_tagline), 12f, colors.accent), 14)
-            if (live.detail != Receiving.State().detail)
+            if (live.detail != Receiving.State().detail && live.detail != "Receiving stopped")
                 add(line(live.detail, 13f, colors.secondary), 12)
-            button(getString(R.string.watch_wi_fi), false) {
-                runCatching {
-                        startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
-                    }
-                    .onFailure {
-                        error = getString(R.string.watch_wifi_unavailable)
-                        refresh()
-                    }
+        }
+        button(getString(R.string.watch_wi_fi), false) {
+            runCatching {
+                startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
             }
+                .onFailure {
+                    error = getString(R.string.watch_wifi_unavailable)
+                    refresh()
+                }
         }
     }
 
-    private fun showLink(url: String) {
-        add(line(getString(R.string.watch_your_watch_link), 20f, bold = true), 14)
-        add(line(getString(R.string.watch_link_description), 13f, colors.secondary), 12)
-        add(
-            line(url, 12f, colors.mint).apply {
-                textDirection = View.TEXT_DIRECTION_LTR
-                setTextIsSelectable(true)
-            },
-            14,
-        )
-        add(line(getString(R.string.watch_connection_privacy), 12f, colors.secondary), 14)
-        button(getString(R.string.watch_back_to_code), false) {
-            showingLink = false
-            refresh()
-        }
+    private fun startReceiving() {
+        error = null
+        runCatching { startForegroundService(Intent(this, ReceiveService::class.java)) }
+            .onFailure {
+                error = getString(R.string.watch_connection_error)
+                refresh()
+            }
     }
 
-    // Android 12 uses this callback; Android 13+ registers the platform callback above.
-    @Suppress("DEPRECATION")
-    @android.annotation.SuppressLint("GestureBackNavigation")
-    @Deprecated("Legacy callback for Android 12")
-    override fun onBackPressed() {
-        if (showingLink) {
-            showingLink = false
-            refresh()
-        } else super.onBackPressed()
+    private fun browserRequest(request: BrowserAccess.Request) {
+        add(line(getString(R.string.watch_connect_browser), 21f, bold = true), 8)
+        add(line(request.label, 15f, colors.secondary), 10)
+        add(line(request.address, 12f, colors.secondary), 5)
+        button(getString(R.string.watch_allow_browser)) {
+            Receiving.answerBrowser(request.id, true)
+        }
+        button(getString(R.string.watch_not_now), false) {
+            Receiving.answerBrowser(request.id, false)
+        }
+        button(getString(R.string.watch_end_session), false) {
+            stopService(Intent(this, ReceiveService::class.java))
+        }
     }
 
     private fun incoming(job: PendingApk) {
@@ -481,25 +478,7 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
         when (state) {
             InstallState.READY,
             InstallState.FAILED -> {
-                if (!ApkRules.fresh(job.created, System.currentTimeMillis())) {
-                    add(
-                        line(
-                            getString(R.string.watch_file_expired),
-                            13f,
-                            colors.error,
-                        ),
-                        12,
-                    )
-                } else if (store.file(job.id).exists()) {
-                    if (!apk.wear)
-                        add(
-                            line(
-                                getString(R.string.watch_fit_notice),
-                                12f,
-                                colors.error,
-                            ),
-                            10,
-                        )
+                if (store.file(job.id).exists()) {
                     if (packageManager.canRequestPackageInstalls())
                         button(
                             if (state == InstallState.FAILED) getString(R.string.watch_try_again)
@@ -516,11 +495,13 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
                             ),
                             10,
                         )
-                        button(getString(R.string.watch_allow_installs)) { settings() }
+                        button(getString(R.string.watch_allow_installs)) {
+                            requestedInstallId = job.id
+                            settings()
+                        }
                         button(getString(R.string.watch_google_play), false) { play() }
                     }
                 }
-                add(line(getString(R.string.watch_trust_notice), 12f, colors.secondary), 10)
                 button(getString(R.string.watch_remove_file), false) { dismiss(job) }
             }
             InstallState.CONFIRM -> {
@@ -589,6 +570,7 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
     private fun settings() {
         runCatching { startActivity(ApkInstaller.settings(this)) }
             .onFailure {
+                requestedInstallId = null
                 error = getString(R.string.watch_permission_unavailable)
                 refresh()
             }
@@ -604,8 +586,11 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
         error = null
         refresh()
         io.execute {
-            ApkInstaller(applicationContext).install(job)
+            val result = runCatching { ApkInstaller(applicationContext).install(job) }
             runOnUiThread {
+                result.exceptionOrNull()?.let {
+                    error = it.userMessage(getString(R.string.watch_save_error))
+                }
                 busy = false
                 refresh()
             }

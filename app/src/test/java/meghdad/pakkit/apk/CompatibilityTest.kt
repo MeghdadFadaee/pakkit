@@ -7,25 +7,25 @@ class CompatibilityTest {
     private val apk = Apk("Test", "test.app", "1", 31, 1024, "digest", setOf("arm64-v8a"), true)
 
     @Test
-    fun acceptsCompatibleSdkAbiAndStorage() {
-        PackageInspector.checkForWatch(apk, 36, setOf("arm64-v8a"), 100L * 1024 * 1024)
+    fun acceptsCompatibleSdkAndProcessor() {
+        PackageInspector.checkForWatch(apk, 36, setOf("arm64-v8a"))
     }
 
     @Test
-    fun rejectsIncompatibleSdkProcessorAndInsufficientStorage() {
+    fun rejectsActualPlatformIncompatibility() {
         assertTrue(
-            runCatching {
-                PackageInspector.checkForWatch(apk, 30, setOf("arm64-v8a"), Long.MAX_VALUE)
-            }
-                .isFailure,
+            runCatching { PackageInspector.checkForWatch(apk, 30, setOf("arm64-v8a")) }.isFailure
         )
         assertTrue(
-            runCatching { PackageInspector.checkForWatch(apk, 36, setOf("x86_64"), Long.MAX_VALUE) }
-                .isFailure,
+            runCatching { PackageInspector.checkForWatch(apk, 36, setOf("x86_64")) }.isFailure
         )
-        assertTrue(
-            runCatching { PackageInspector.checkForWatch(apk, 36, setOf("arm64-v8a"), 1024) }
-                .isFailure,
-        )
+    }
+
+    @Test
+    fun storageUsesAvailableBytesWithoutAMultiplierOrOverflow() {
+        PackageInspector.requireSpace(100, 100)
+        PackageInspector.requireSpace(Long.MAX_VALUE, Long.MAX_VALUE)
+        assertTrue(runCatching { PackageInspector.requireSpace(101, 100) }.isFailure)
+        assertTrue(runCatching { PackageInspector.requireSpace(Long.MAX_VALUE, 1024) }.isFailure)
     }
 }

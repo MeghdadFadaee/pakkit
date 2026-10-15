@@ -31,21 +31,19 @@ class ApkInstaller(private val context: Context) {
             requireUser(context.packageManager.canRequestPackageInstalls()) {
                 "Allow Pakkit to install apps, then try again."
             }
-            requireUser(ApkRules.fresh(apk.created, System.currentTimeMillis())) {
-                "This file has expired. Send it again to install."
-            }
             val file = store.file(apk.id)
-            val digest = file.inputStream().use { ApkRules.copyBounded(it).second }
+            val digest = file.inputStream().use { ApkRules.copyAndHash(it).second }
             requireUser(digest == apk.apk.sha256) {
                 "This file has changed. Send a fresh copy to install."
             }
-            val inspected = PackageInspector.inspect(context, file, digest)
+            // Receipt already inspected these bytes; the digest proves they are unchanged.
+            val inspected = apk.apk
             PackageInspector.checkForWatch(
                 inspected,
                 Build.VERSION.SDK_INT,
                 Build.SUPPORTED_ABIS.toSet(),
-                PackageInspector.free(context),
             )
+            PackageInspector.requireSpace(file.length(), PackageInspector.free(context))
             apk.sessionId?.let { runCatching { installer.abandonSession(it) } }
             val params =
                 PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)

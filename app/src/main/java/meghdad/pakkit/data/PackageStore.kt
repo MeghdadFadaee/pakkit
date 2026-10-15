@@ -6,6 +6,7 @@ import java.io.File
 import meghdad.pakkit.apk.ApkRules
 import meghdad.pakkit.apk.InstallState
 import meghdad.pakkit.apk.PendingApk
+import meghdad.pakkit.apk.UserMessage
 import org.json.JSONObject
 
 /** One private package and its review, stored atomically under a stable on-disk schema. */
@@ -38,7 +39,7 @@ class PackageStore(context: Context) {
                     state = state,
                     detail = detail,
                     sessionId = sessionId ?: current.sessionId,
-                ),
+                )
             )
             true
         }
@@ -50,19 +51,27 @@ class PackageStore(context: Context) {
             check(preferences.edit().remove(PENDING_KEY).commit())
         }
 
-    /** Expiry prevents installation; disk cleanup is intentionally lazy, on the next app launch. */
-    fun clean(now: Long = System.currentTimeMillis()) =
+    /** Called at process startup, before any transfer can own an uncommitted file. */
+    fun clean() =
         synchronized(lock) {
-            pending()?.takeUnless { ApkRules.fresh(it.created, now) }?.let { dismiss(it.id) }
             val keep = pending()?.id
             directory.listFiles()?.forEach { file ->
-                if (file.name != "$keep.apk" && now - file.lastModified() >= ApkRules.TTL_MS)
-                    file.delete()
+                if (file.name != "$keep.apk") file.delete()
             }
         }
 
     private fun persist(apk: PendingApk) {
-        check(preferences.edit().putString(PENDING_KEY, apk.json().toString()).commit())
+        val previous = preferences.getString(PENDING_KEY, null)
+        if (!preferences.edit().putString(PENDING_KEY, apk.json().toString()).commit()) {
+            // SharedPreferences updates memory before its disk write; restore both views on
+            // failure.
+            if (!preferences.edit().putString(PENDING_KEY, previous).commit()) {
+                android.util.Log.w("PakkitStore", "Could not persist review rollback")
+            }
+            throw UserMessage(
+                "Couldn’t save this app. Free some space on your watch and try again."
+            )
+        }
     }
 
     companion object {

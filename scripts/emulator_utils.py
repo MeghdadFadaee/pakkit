@@ -61,15 +61,13 @@ def tap_text(serial, label, attempts=6):
 
 
 def session_url(serial):
-    tap_text(serial, "View link")
     for _ in range(6):
         tree = ui(serial)
         for node in tree.iter("node"):
             value = node.get("text", "")
-            if value.startswith("http://") and "#" in value:
-                tap_text(serial, "Back to code")
+            if value.startswith("http://") and ":8787" in value:
                 return value
         bounds = next(tree.iter("node")).get("bounds")
         _, _, width, height = map(int, re.findall(r"\d+", bounds))
         adb(serial, "shell", "input", "swipe", str(width // 2), str(height * 3 // 4), str(width // 2), str(height // 4), "300")
-    raise RuntimeError("No private session link found. Check source approval and emulator Wi-Fi.")
+    raise RuntimeError("No receiving address found. Check emulator Wi-Fi.")

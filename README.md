@@ -8,12 +8,12 @@ Send an APK from your browser to your Wear OS watch, then approve installation o
 
 1. Open Pakkit on a supported watch.
 2. Connect the watch and browser device to the same trusted Wi-Fi.
-3. Tap **Start receiving** and scan the QR code. For manual entry, tap **View link** on the watch and open the complete link in your browser.
-4. Select one complete `.apk` up to **50 MiB**. Watch transfer progress in the browser and on the watch.
-5. Review the app on your watch. If prompted, tap **Allow installs** to grant source permission, then tap **Install** and approve it.
-6. End the receiving session when finished. Sessions automatically end after ten minutes or on Wi-Fi loss.
+3. Tap **Start receiving** and scan the QR code or open the displayed address. The port is always **8787**.
+4. Tap **Allow browser** on your watch, then choose an APK in the browser. There is no product file-size limit; available storage and Android determine what fits.
+5. Review the app and tap **Install** on your watch. First-time **Allow installs** grants source permission and continues the requested installation. Approve it in Android’s installer.
+6. Tap **Stop receiving** when finished. Receiving has no app-imposed expiry and reconnects when Wi-Fi returns.
 
-The local connection uses **unencrypted HTTP**. Use trusted Wi-Fi and keep the private link secret. Package inspection checks format and compatibility; it does not certify app safety. Source approval, firmware security policy and Android’s installer determine whether installation is available. Split packages and app bundles are unsupported. See [platform constraints](docs/PLATFORM.md).
+The local connection uses **unencrypted HTTP**. Use trusted Wi-Fi and approve only browsers you recognize. Package inspection checks format and compatibility; it does not certify app safety. Source approval, firmware security policy and Android’s installer determine whether installation is available. Split packages and app bundles are unsupported. See [platform constraints](docs/PLATFORM.md).
 
 The current artifacts are development builds. Public distribution requires the checks in [release preparation](docs/RELEASE.md).
 
@@ -55,4 +55,4 @@ python3 scripts/test-emulators.py --watch emulator-5554 --small --skip-build
 
 For browser tests and real Android-Emulator-to-Wear-Emulator uploads, see [development and testing](docs/DEVELOPMENT.md). Results and screenshots are generated under `app/build/reports/validation`, not checked into source control.
 
-[Architecture](docs/ARCHITECTURE.md) · [Design](docs/DESIGN.md) · [Platform](docs/PLATFORM.md) · [Privacy](docs/PRIVACY.md) · [Release](docs/RELEASE.md) · [Validation](docs/VALIDATION.md)
+[Restriction audit](docs/RESTRICTIONS.md) · [Architecture](docs/ARCHITECTURE.md) · [Design](docs/DESIGN.md) · [Platform](docs/PLATFORM.md) · [Privacy](docs/PRIVACY.md) · [Release](docs/RELEASE.md) · [Validation](docs/VALIDATION.md)

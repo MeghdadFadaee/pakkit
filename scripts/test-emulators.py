@@ -13,6 +13,7 @@ parser.add_argument("--watch", required=True, help="Wear OS emulator serial, e.g
 parser.add_argument("--browser", help="Optional Android emulator serial with Chrome initialized")
 parser.add_argument("--small", action="store_true", help="Run round UI tests at 192dp and 1.3x font size")
 parser.add_argument("--skip-build", action="store_true")
+parser.add_argument("--large", action="store_true", help="Use app/build/qa/large-fixture.apk for the real browser upload")
 args = parser.parse_args()
 if args.browser == args.watch:
     parser.error("Use distinct Wear OS and Android browser emulator serials.")
@@ -51,7 +52,7 @@ try:
     print(output, flush=True)
     screenshots = report_dir / ("watch-product-small" if args.small else "watch-product")
     screenshots.mkdir(exist_ok=True)
-    for name in ["home", "scan", "link", "sending", "checking", "ready", "installing", "confirm", "failed", "installed"]:
+    for name in ["home", "scan", "browser-approval", "sending", "checking", "ready", "installing", "confirm", "failed", "installed"]:
         image = adb(args.watch, "exec-out", "cat", f"/sdcard/Android/data/meghdad.pakkit/files/product-review/{name}.png")
         (screenshots / f"{name}.png").write_bytes(image)
 
@@ -78,10 +79,28 @@ if args.browser:
         tap_text(args.watch, "Start receiving")
         url = session_url(args.watch)
         env = dict(os.environ, PAKKIT_SESSION_URL=url, PAKKIT_CDP_URL=f"http://127.0.0.1:{endpoint}")
-        subprocess.run(["node", str(ROOT / "web-tests/emulator.test.cjs")], cwd=ROOT, env=env, check=True)
+        remote_fixture = "/sdcard/Android/data/com.android.chrome/files/pakkit-large.apk"
+        if args.large:
+            fixture = ROOT / "app/build/qa/large-fixture.apk"
+            if not fixture.exists():
+                raise RuntimeError("Run scripts/create-large-fixture.py first.")
+            adb(args.browser, "shell", "mkdir", "-p", "/sdcard/Android/data/com.android.chrome/files")
+            adb(args.browser, "push", str(fixture), remote_fixture)
+            env.update(PAKKIT_TEST_APK=str(fixture), PAKKIT_BROWSER_FILE=remote_fixture)
+        browser_test = subprocess.Popen(["node", str(ROOT / "web-tests/emulator.test.cjs")], cwd=ROOT, env=env)
+        try:
+            tap_text(args.watch, "Allow browser", attempts=12)
+            if browser_test.wait(timeout=180) != 0:
+                raise RuntimeError("Android browser transfer failed.")
+        finally:
+            if browser_test.poll() is None:
+                browser_test.terminate()
+                browser_test.wait(timeout=10)
         adb(args.watch, "shell", "am", "start", "-W", "-n", "meghdad.pakkit/.ui.WatchActivity")
         tap_text(args.watch, "Remove file")
-        tap_text(args.watch, "End session")
+        tap_text(args.watch, "Stop receiving")
     finally:
+        if args.large:
+            adb(args.browser, "shell", "rm", "-f", "/sdcard/Android/data/com.android.chrome/files/pakkit-large.apk")
         adb(args.browser, "forward", "--remove", f"tcp:{endpoint}")
         adb(args.watch, "shell", "am", "force-stop", "meghdad.pakkit")

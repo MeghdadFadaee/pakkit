@@ -1,19 +1,19 @@
 package meghdad.pakkit.transfer
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
-import android.os.SystemClock
-import android.util.Base64
+import android.os.PowerManager
 import java.io.BufferedInputStream
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
-import java.net.Inet4Address
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.security.SecureRandom
 import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
@@ -22,8 +22,10 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import meghdad.pakkit.apk.ApkRules
+import meghdad.pakkit.apk.InstallState
 import meghdad.pakkit.apk.PackageInspector
 import meghdad.pakkit.apk.PendingApk
+import meghdad.pakkit.apk.requireUser
 import meghdad.pakkit.apk.userMessage
 import meghdad.pakkit.data.PackageStore
 import org.json.JSONObject
@@ -31,27 +33,32 @@ import org.json.JSONObject
 /** Bounded HTTP endpoint. Wi-Fi acquisition, notifications and power belong to ReceiveService. */
 class LocalHttpServer(
     private val context: Context,
-    address: Inet4Address,
-    private val deadline: Long,
+    private val address: InetAddress,
     private val owner: Any,
+    private val access: BrowserAccess = BrowserAccess(),
 ) : Closeable {
     private val store = PackageStore(context)
     private val listener =
-        ServerSocket().apply {
-            reuseAddress = true
-            bind(InetSocketAddress(address, 0), 4)
+        ServerSocket().also { socket ->
+            try {
+                socket.reuseAddress = true
+                socket.bind(InetSocketAddress(address, PORT), 4)
+            } catch (error: Exception) {
+                runCatching { socket.close() }
+                throw error
+            }
         }
     private val workers = ThreadPoolExecutor(2, 2, 0, TimeUnit.SECONDS, ArrayBlockingQueue(4))
     private val sockets = ConcurrentHashMap.newKeySet<Socket>()
     private val uploading = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
-    private val token =
-        Base64.encodeToString(
-            ByteArray(24).also { SecureRandom().nextBytes(it) },
-            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
-        )
-    private val authority = "${address.hostAddress}:${listener.localPort}"
-    val url = "http://$authority/#$token"
+    private val commitLock = Any()
+    private val host =
+        address.hostAddress.orEmpty().substringBefore('%').let {
+            if (address is Inet6Address) "[$it]" else it
+        }
+    private val authority = "$host:${listener.localPort}"
+    val url = "http://$authority/"
 
     fun start() {
         Thread(
@@ -93,11 +100,11 @@ class LocalHttpServer(
         val response = Response(socket)
         try {
             val input = BufferedInputStream(socket.getInputStream(), 8192)
+            socket.soTimeout = 5_000
             val request = HttpProtocol.read(input)
-            check(!closed.get() && SystemClock.elapsedRealtime() < deadline) {
-                "Receiving has ended. Open a fresh link from your watch."
-            }
-            if (request.headers["host"] != authority) {
+            socket.soTimeout = 15_000
+            requireUser(!closed.get()) { "Receiving has stopped. Open Pakkit to start again." }
+            if (!HttpProtocol.sameAuthority(request.headers["host"], address, PORT)) {
                 response.error(403, "Open the address shown on your watch.")
                 return
             }
@@ -110,18 +117,37 @@ class LocalHttpServer(
                 )
                 return
             }
-            if (!HttpProtocol.authorized(request.headers["authorization"], token)) {
-                response.error(403, "Open the private link or scan the QR code on your watch.")
+            if (request.method == "POST" && !validOrigin(request.headers["origin"])) {
+                response.error(403, "Open the address shown on your watch to send an app.")
+                return
+            }
+            val credential = BrowserAccess.credential(request.headers["authorization"])
+            if (request.method == "POST" && request.path in setOf("/api/connect", "/api/retry")) {
+                if (request.path == "/api/retry") access.retry(credential)
+                val connection =
+                    access.connect(
+                        credential,
+                        BrowserAccess.label(request.headers["user-agent"].orEmpty()),
+                        socket.inetAddress.hostAddress.orEmpty(),
+                    )
+                response.json(
+                    200,
+                    JSONObject().put("connection", connection.state.name.lowercase()).apply {
+                        connection.credential?.let { put("credential", it) }
+                    },
+                )
+                return
+            }
+            val browser = access.state(credential)
+            if (browser != BrowserAccess.State.APPROVED) {
+                response.json(403, JSONObject().put("connection", browser.name.lowercase()))
                 return
             }
             when {
                 request.method == "GET" && request.path == "/api/status" ->
                     response.json(200, status())
-                request.method == "POST" && request.path == "/api/upload" -> {
-                    if (request.headers["origin"] != "http://$authority")
-                        response.error(403, "Open the link shown on your watch to send an app.")
-                    else upload(request, input, response)
-                }
+                request.method == "POST" && request.path == "/api/upload" ->
+                    upload(request, input, response)
                 else -> response.error(404, "Not found")
             }
         } catch (error: Exception) {
@@ -135,6 +161,10 @@ class LocalHttpServer(
         }
     }
 
+    private fun validOrigin(origin: String?): Boolean =
+        origin?.startsWith("http://") == true &&
+            HttpProtocol.sameAuthority(origin.removePrefix("http://"), address, PORT)
+
     private fun status(): JSONObject {
         val pending = store.pending()
         val live = Receiving.state
@@ -144,9 +174,12 @@ class LocalHttpServer(
             .put("label", pending?.apk?.label.orEmpty())
             .put("received", live.received)
             .put("total", live.total)
-            .put("expiresIn", ((deadline - SystemClock.elapsedRealtime()) / 1000).coerceAtLeast(0))
+            .put("connection", "approved")
     }
 
+    // The read-idle socket timeout and close() bound stalled I/O; no total transfer deadline.
+    // Release in finally also covers validation failures, cancellation and running out of space.
+    @SuppressLint("WakelockTimeout")
     private fun upload(request: HttpProtocol.Request, input: InputStream, response: Response) {
         val length = HttpProtocol.uploadLength(request.headers)
         if (!uploading.compareAndSet(false, true)) {
@@ -154,46 +187,60 @@ class LocalHttpServer(
             return
         }
         var partial: File? = null
+        val wake =
+            context
+                .getSystemService(PowerManager::class.java)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "pakkit:upload")
         try {
+            store
+                .pending()
+                ?.takeIf { it.state in setOf(InstallState.INSTALLED, InstallState.FAILED) }
+                ?.let { store.dismiss(it.id) }
             if (store.pending() != null) {
                 response.error(409, "Finish with the app on your watch before sending another.")
                 return
             }
             PackageInspector.requireSpace(length, PackageInspector.free(context))
-            val id = UUID.randomUUID().toString()
-            val file = store.file(id)
-            partial = file
-            Receiving.update(owner) {
-                it.copy(detail = "Your app is on its way…", total = length, received = 0)
-            }
-            val body =
-                UploadBody(
-                    input,
-                    length,
-                    progress = { received ->
-                        Receiving.update(owner) { it.copy(received = received) }
-                    },
+            wake.acquire()
+            try {
+                val id = UUID.randomUUID().toString()
+                val file = store.file(id)
+                partial = file
+                updateLive {
+                    it.copy(detail = "Your app is on its way…", total = length, received = 0)
+                }
+                val body =
+                    UploadBody(
+                        input,
+                        length,
+                        progress = { received ->
+                            updateLive { it.copy(received = received) }
+                        },
+                    )
+                val digest = file.outputStream().use { ApkRules.copyAndHash(body, it).second }
+                updateLive { it.copy(detail = "Getting your app ready…") }
+                val apk = PackageInspector.inspect(context, file, digest)
+                PackageInspector.checkForWatch(
+                    apk,
+                    Build.VERSION.SDK_INT,
+                    Build.SUPPORTED_ABIS.toSet(),
                 )
-            val digest = file.outputStream().use { ApkRules.copyBounded(body, it).second }
-            Receiving.update(owner) { it.copy(detail = "Getting your app ready…") }
-            val apk = PackageInspector.inspect(context, file, digest)
-            PackageInspector.checkForWatch(
-                apk,
-                Build.VERSION.SDK_INT,
-                Build.SUPPORTED_ABIS.toSet(),
-                PackageInspector.free(context),
-            )
-            check(!closed.get() && SystemClock.elapsedRealtime() < deadline) {
-                "Receiving has ended. Open a fresh link from your watch."
+                synchronized(commitLock) {
+                    requireUser(!closed.get()) {
+                        "Receiving has stopped. Start again to send this app."
+                    }
+                    store.stage(PendingApk(id, System.currentTimeMillis(), apk))
+                }
+                partial = null
+                updateLive { it.copy(detail = "Ready to install") }
+                response.json(200, JSONObject().put("label", apk.label).put("state", "ready"))
+            } finally {
+                wake.release()
             }
-            store.stage(PendingApk(id, System.currentTimeMillis(), apk))
-            partial = null
-            Receiving.update(owner) { it.copy(detail = "Ready to install") }
-            response.json(200, JSONObject().put("label", apk.label).put("state", "ready"))
         } finally {
             partial?.delete()
             uploading.set(false)
-            Receiving.update(owner) {
+            updateLive {
                 it.copy(
                     received = 0,
                     total = 0,
@@ -204,8 +251,16 @@ class LocalHttpServer(
         }
     }
 
+    private fun updateLive(change: (Receiving.State) -> Receiving.State) {
+        synchronized(commitLock) {
+            if (!closed.get()) Receiving.update(owner, change)
+        }
+    }
+
     override fun close() {
-        if (!closed.compareAndSet(false, true)) return
+        synchronized(commitLock) {
+            if (!closed.compareAndSet(false, true)) return
+        }
         try {
             listener.close()
         } finally {
@@ -252,6 +307,7 @@ class LocalHttpServer(
     }
 
     companion object {
+        const val PORT = 8787
         private val ASSETS =
             mapOf(
                 "/" to ("index.html" to "text/html; charset=utf-8"),

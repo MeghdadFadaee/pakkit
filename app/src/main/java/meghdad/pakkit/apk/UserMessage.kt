@@ -8,4 +8,11 @@ inline fun requireUser(value: Boolean, message: () -> String) {
 }
 
 fun Throwable.userMessage(fallback: String): String =
-    if (this is UserMessage) message ?: fallback else fallback
+    when {
+        this is UserMessage -> message ?: fallback
+        generateSequence(this) { it.cause }
+            .any {
+                it is android.system.ErrnoException && it.errno == android.system.OsConstants.ENOSPC
+            } -> "Free some space on your watch, then try again."
+        else -> fallback
+    }

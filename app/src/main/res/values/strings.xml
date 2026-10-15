@@ -1,32 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="watch_end_session">End session</string>
+    <string name="watch_end_session">Stop receiving</string>
     <string name="watch_just_checking">Just checking…</string>
     <string name="watch_on_its_way">On its way</string>
     <string name="watch_getting_your_app_ready">Getting your app ready.</string>
     <string name="watch_keep_your_browser_open">Keep your browser open.</string>
-    <string name="watch_scan_to_send">Scan to send</string>
+    <string name="watch_scan_to_send">Scan to connect</string>
     <string name="watch_scan_description">Both devices on the same Wi-Fi.</string>
-    <string name="watch_ready_for_10_minutes">Ready for 10 minutes</string>
-    <string name="watch_view_link">View link</string>
     <string name="watch_finding_wi_fi">Finding Wi-Fi</string>
-    <string name="watch_connecting_description">Getting ready for your next app.</string>
-    <string name="watch_cancel">Cancel</string>
     <string name="watch_start_receiving">Start receiving</string>
     <string name="watch_connection_error">Couldn’t connect. Check Wi-Fi and try again.</string>
     <string name="watch_wi_fi">Wi-Fi</string>
     <string name="watch_wifi_unavailable">Open Wi-Fi in your watch’s Settings.</string>
-    <string name="watch_your_watch_link">Your watch link</string>
-    <string name="watch_link_description">Open this link on a device using the same Wi-Fi.</string>
-    <string name="watch_connection_privacy">Use Wi-Fi you trust. Transfers aren’t encrypted. Keep this link private.</string>
-    <string name="watch_back_to_code">Back to code</string>
     <string name="watch_all_yours">All yours.</string>
     <string name="watch_couldn_t_install">Couldn’t install</string>
     <string name="watch_getting_ready">Getting ready…</string>
     <string name="watch_ready_to_install">Ready to install</string>
-    <string name="watch_file_expired">This file has expired. Send it again to install.</string>
-    <string name="watch_fit_notice">Made for a phone? It may not fit your watch.</string>
-    <string name="watch_trust_notice">Only install apps you trust.</string>
     <string name="watch_try_again">Try again</string>
     <string name="watch_install">Install</string>
     <string name="watch_permission_description">Allow Pakkit to install apps. You’ll approve each one.</string>
@@ -43,7 +32,11 @@
     <string name="watch_permission_unavailable">Your watch doesn’t offer this setting. Find apps on Google Play instead.</string>
     <string name="watch_launch_unavailable">This app can’t be opened here. Check your watch’s app list.</string>
     <string name="watch_play_unavailable">Find Google Play in your watch’s app list.</string>
-    <string name="scan_code_description">QR code to connect your browser. Use View link for the full address.</string>
+    <string name="scan_code_description">QR code to connect your browser. The address is below.</string>
     <string name="watch_percent_received">%1$d%% received</string>
     <string name="watch_app_summary">%1$s · %2$s MB</string>
+    <string name="watch_connect_browser">Connect browser?</string>
+    <string name="watch_allow_browser">Allow browser</string>
+    <string name="watch_not_now">Not now</string>
+    <string name="watch_save_error">Couldn’t save this app. Free some space and try again.</string>
 </resources>
