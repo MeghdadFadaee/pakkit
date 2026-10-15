@@ -41,7 +41,7 @@ class InstallReceiver : BroadcastReceiver() {
                     store.update(
                         apk.id,
                         InstallState.FAILED,
-                        "The system did not provide an approval screen.",
+                        "Couldn’t open approval. Try again.",
                     )
                     return
                 }
@@ -50,43 +50,9 @@ class InstallReceiver : BroadcastReceiver() {
                 store.update(
                     apk.id,
                     InstallState.CONFIRM,
-                    "Continue the system approval on your watch.",
+                    "Ready for your approval.",
                 )
-                manager.createNotificationChannel(
-                    NotificationChannel(
-                        "installation",
-                        "Installation approval",
-                        NotificationManager.IMPORTANCE_DEFAULT,
-                    ),
-                )
-                if (
-                    Build.VERSION.SDK_INT < 33 ||
-                        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-                            PackageManager.PERMISSION_GRANTED
-                ) {
-                    val open =
-                        Intent(context, WatchActivity::class.java)
-                            .putExtra("approval", confirmation)
-                            .putExtra("job", apk.id)
-                    val pending =
-                        PendingIntent.getActivity(
-                            context,
-                            apk.sessionId,
-                            open,
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                        )
-                    manager.notify(
-                        NOTIFICATION,
-                        Notification.Builder(context, "installation")
-                            .setSmallIcon(R.drawable.pakkit_mark)
-                            .setColor(WatchDesign.PURPLE)
-                            .setContentTitle("Approve installation")
-                            .setContentText("Open Pakkit to continue on your watch.")
-                            .setContentIntent(pending)
-                            .setAutoCancel(true)
-                            .build(),
-                    )
-                }
+                notifyApproval(context)
             }
             PackageInstaller.STATUS_SUCCESS -> {
                 PendingApproval.clear()
@@ -101,17 +67,17 @@ class InstallReceiver : BroadcastReceiver() {
                         PackageInstaller.STATUS_FAILURE_ABORTED ->
                             "Installation was cancelled. You can try again."
                         PackageInstaller.STATUS_FAILURE_BLOCKED ->
-                            "The watch’s security policy blocked this installation. Use Google Play or contact the app developer."
+                            "Your watch blocked this app. Look for it on Google Play."
                         PackageInstaller.STATUS_FAILURE_CONFLICT ->
-                            "This APK conflicts with an installed app or its signature. Ask the developer for a compatible version."
+                            "A different version is already installed. Get a matching update from the app’s source."
                         PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ->
-                            "This APK is not compatible with your watch."
+                            "This app doesn’t work on your watch. Try a version made for it."
                         PackageInstaller.STATUS_FAILURE_INVALID ->
-                            "The system rejected this APK’s format or signature."
+                            "Your watch couldn’t verify this app. Get a fresh copy from its source."
                         PackageInstaller.STATUS_FAILURE_STORAGE ->
-                            "Your watch needs more free storage."
+                            "Free some space on your watch, then try again."
                         else ->
-                            "The system could not finish installing. Try again or use Google Play."
+                            "Couldn’t finish installing. Try again or find the app on Google Play."
                     }
                 store.update(apk.id, InstallState.FAILED, detail)
                 manager.cancel(NOTIFICATION)
@@ -121,5 +87,48 @@ class InstallReceiver : BroadcastReceiver() {
 
     companion object {
         const val NOTIFICATION = 42
+
+        fun notifyApproval(context: Context) {
+            val apk = PackageStore(context).pending() ?: return
+            if (apk.state != InstallState.CONFIRM || PendingApproval.id != apk.id) return
+            val sessionId = apk.sessionId ?: return
+            val confirmation = PendingApproval.intent ?: return
+            val manager = context.getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    "installation",
+                    "App installation",
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                )
+            )
+            if (
+                Build.VERSION.SDK_INT < 33 ||
+                    context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                        PackageManager.PERMISSION_GRANTED
+            ) {
+                val open =
+                    Intent(context, WatchActivity::class.java)
+                        .putExtra("approval", confirmation)
+                        .putExtra("job", apk.id)
+                val pending =
+                    PendingIntent.getActivity(
+                        context,
+                        sessionId,
+                        open,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    )
+                manager.notify(
+                    NOTIFICATION,
+                    Notification.Builder(context, "installation")
+                        .setSmallIcon(R.drawable.pakkit_mark)
+                        .setColor(WatchDesign.PURPLE)
+                        .setContentTitle("Your app is ready to install")
+                        .setContentText("Open Pakkit to give it the go-ahead.")
+                        .setContentIntent(pending)
+                        .setAutoCancel(true)
+                        .build(),
+                )
+            }
+        }
     }
 }

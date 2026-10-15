@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import meghdad.pakkit.apk.ApkRules
 import meghdad.pakkit.apk.PackageInspector
 import meghdad.pakkit.apk.PendingApk
+import meghdad.pakkit.apk.userMessage
 import meghdad.pakkit.data.PackageStore
 import org.json.JSONObject
 
@@ -94,7 +95,7 @@ class LocalHttpServer(
             val input = BufferedInputStream(socket.getInputStream(), 8192)
             val request = HttpProtocol.read(input)
             check(!closed.get() && SystemClock.elapsedRealtime() < deadline) {
-                "The receiving session ended. Start a new one."
+                "Receiving has ended. Open a fresh link from your watch."
             }
             if (request.headers["host"] != authority) {
                 response.error(403, "Open the address shown on your watch.")
@@ -118,7 +119,7 @@ class LocalHttpServer(
                     response.json(200, status())
                 request.method == "POST" && request.path == "/api/upload" -> {
                     if (request.headers["origin"] != "http://$authority")
-                        response.error(403, "Use Pakkit’s local page.")
+                        response.error(403, "Open the link shown on your watch to send an app.")
                     else upload(request, input, response)
                 }
                 else -> response.error(404, "Not found")
@@ -128,7 +129,7 @@ class LocalHttpServer(
                 runCatching {
                     response.error(
                         400,
-                        error.message?.take(180) ?: "Transfer interrupted. Try again.",
+                        error.userMessage("Your app didn’t arrive. Choose the file and try again."),
                     )
                 }
         }
@@ -155,7 +156,7 @@ class LocalHttpServer(
         var partial: File? = null
         try {
             if (store.pending() != null) {
-                response.error(409, "Finish or dismiss the current app on your watch first.")
+                response.error(409, "Finish with the app on your watch before sending another.")
                 return
             }
             PackageInspector.requireSpace(length, PackageInspector.free(context))
@@ -163,7 +164,7 @@ class LocalHttpServer(
             val file = store.file(id)
             partial = file
             Receiving.update(owner) {
-                it.copy(detail = "Receiving APK…", total = length, received = 0)
+                it.copy(detail = "Your app is on its way…", total = length, received = 0)
             }
             val body =
                 UploadBody(
@@ -174,7 +175,7 @@ class LocalHttpServer(
                     },
                 )
             val digest = file.outputStream().use { ApkRules.copyBounded(body, it).second }
-            Receiving.update(owner) { it.copy(detail = "Checking APK…") }
+            Receiving.update(owner) { it.copy(detail = "Getting your app ready…") }
             val apk = PackageInspector.inspect(context, file, digest)
             PackageInspector.checkForWatch(
                 apk,
@@ -183,7 +184,7 @@ class LocalHttpServer(
                 PackageInspector.free(context),
             )
             check(!closed.get() && SystemClock.elapsedRealtime() < deadline) {
-                "The receiving session ended. Try again."
+                "Receiving has ended. Open a fresh link from your watch."
             }
             store.stage(PendingApk(id, System.currentTimeMillis(), apk))
             partial = null

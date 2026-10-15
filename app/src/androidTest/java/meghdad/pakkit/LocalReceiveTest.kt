@@ -67,7 +67,7 @@ class LocalReceiveTest : WatchTest() {
                 head.toString() + bytes.toString(Charsets.UTF_8)
             }
         }
-        assertTrue(request("GET", "/").contains("Pocket"))
+        assertTrue(request("GET", "/").contains("Pack it."))
         assertTrue(request("GET", "/api/status", token = null).startsWith("HTTP/1.1 403"))
         assertTrue(request("GET", "/api/status", token = "wrong").startsWith("HTTP/1.1 403"))
         assertTrue(

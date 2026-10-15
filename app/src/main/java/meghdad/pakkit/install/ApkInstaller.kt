@@ -12,6 +12,8 @@ import meghdad.pakkit.apk.ApkRules
 import meghdad.pakkit.apk.InstallState
 import meghdad.pakkit.apk.PackageInspector
 import meghdad.pakkit.apk.PendingApk
+import meghdad.pakkit.apk.requireUser
+import meghdad.pakkit.apk.userMessage
 import meghdad.pakkit.data.PackageStore
 
 /** Called only after the watch's explicit Install action, on a worker thread. */
@@ -26,15 +28,17 @@ class ApkInstaller(private val context: Context) {
             context
                 .getSystemService(NotificationManager::class.java)
                 .cancel(InstallReceiver.NOTIFICATION)
-            check(context.packageManager.canRequestPackageInstalls()) {
-                "Allow Pakkit to request installs first."
+            requireUser(context.packageManager.canRequestPackageInstalls()) {
+                "Allow Pakkit to install apps, then try again."
             }
-            require(ApkRules.fresh(apk.created, System.currentTimeMillis())) {
-                "This APK expired. Upload it again."
+            requireUser(ApkRules.fresh(apk.created, System.currentTimeMillis())) {
+                "This file has expired. Send it again to install."
             }
             val file = store.file(apk.id)
             val digest = file.inputStream().use { ApkRules.copyBounded(it).second }
-            require(digest == apk.apk.sha256) { "This APK changed. Upload it again." }
+            requireUser(digest == apk.apk.sha256) {
+                "This file has changed. Send a fresh copy to install."
+            }
             val inspected = PackageInspector.inspect(context, file, digest)
             PackageInspector.checkForWatch(
                 inspected,
@@ -57,9 +61,9 @@ class ApkInstaller(private val context: Context) {
                 store.update(
                     apk.id,
                     InstallState.INSTALLING,
-                    "Waiting for the watch’s system installer.",
+                    "Getting ready to install…",
                     sessionId,
-                ),
+                )
             ) {
                 "This package review is no longer available."
             }
@@ -79,11 +83,12 @@ class ApkInstaller(private val context: Context) {
                 session.commit(pending.intentSender)
             }
         } catch (error: Exception) {
+            android.util.Log.w("PakkitInstall", "Installation preparation failed", error)
             sessionId?.let { runCatching { installer.abandonSession(it) } }
             store.update(
                 apk.id,
                 InstallState.FAILED,
-                error.message ?: "Could not open the system installer. Use Google Play.",
+                error.userMessage("Couldn’t start installation. Try again."),
             )
         }
     }

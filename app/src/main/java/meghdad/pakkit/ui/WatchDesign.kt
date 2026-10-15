@@ -74,20 +74,20 @@ object WatchDesign {
                 ColorStateList(
                     arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
                     intArrayOf(p.secondary, if (primary) Color.WHITE else p.text),
-                ),
+                )
             )
             val fill =
                 if (primary)
                     gradient(
                         intArrayOf(0xFF7854EE.toInt(), 0xFF6038D6.toInt()),
-                        dp(c, 20).toFloat(),
+                        dp(c, 24).toFloat(),
                     )
-                else shape(p.raised, dp(c, 20).toFloat(), p.border)
+                else shape(p.raised, dp(c, 24).toFloat(), p.border)
             val states =
                 android.graphics.drawable.StateListDrawable().apply {
                     addState(
                         intArrayOf(-android.R.attr.state_enabled),
-                        shape(p.raised, dp(c, 20).toFloat(), p.border),
+                        shape(p.raised, dp(c, 24).toFloat(), p.border),
                     )
                     addState(intArrayOf(), fill)
                 }

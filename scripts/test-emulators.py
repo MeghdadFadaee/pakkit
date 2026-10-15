@@ -44,11 +44,17 @@ try:
         adb(args.watch, "shell", "wm", "size", "384x384")
         adb(args.watch, "shell", "wm", "density", "320")
         adb(args.watch, "shell", "settings", "put", "system", "font_scale", "1.3")
-        test_args = ["-e", "class", "meghdad.pakkit.WatchReviewTest,meghdad.pakkit.WatchSessionTest"]
+        test_args = ["-e", "class", "meghdad.pakkit.WatchReviewTest,meghdad.pakkit.WatchSessionTest,meghdad.pakkit.WatchExperienceTest"]
     output = adb(args.watch, "shell", "am", "instrument", "-w", "-r", *test_args,
                  "meghdad.pakkit.test/androidx.test.runner.AndroidJUnitRunner").decode()
     (report_dir / ("watch-small.txt" if args.small else "watch.txt")).write_text(output)
     print(output, flush=True)
+    screenshots = report_dir / ("watch-product-small" if args.small else "watch-product")
+    screenshots.mkdir(exist_ok=True)
+    for name in ["home", "scan", "link", "sending", "checking", "ready", "installing", "confirm", "failed", "installed"]:
+        image = adb(args.watch, "exec-out", "cat", f"/sdcard/Android/data/meghdad.pakkit/files/product-review/{name}.png")
+        (screenshots / f"{name}.png").write_bytes(image)
+
     if re.search(r"INSTRUMENTATION_STATUS_CODE: -[34]", output):
         raise RuntimeError("Tests skipped: allow Pakkit as an install source through the emulator’s system UI, then rerun.")
     if not re.search(r"OK \(\d+ tests?\)", output) or "FAILURES" in output:
@@ -74,7 +80,7 @@ if args.browser:
         env = dict(os.environ, PAKKIT_SESSION_URL=url, PAKKIT_CDP_URL=f"http://127.0.0.1:{endpoint}")
         subprocess.run(["node", str(ROOT / "web-tests/emulator.test.cjs")], cwd=ROOT, env=env, check=True)
         adb(args.watch, "shell", "am", "start", "-W", "-n", "meghdad.pakkit/.ui.WatchActivity")
-        tap_text(args.watch, "Dismiss")
+        tap_text(args.watch, "Remove file")
         tap_text(args.watch, "End session")
     finally:
         adb(args.browser, "forward", "--remove", f"tcp:{endpoint}")

@@ -21,18 +21,18 @@ Browser UI fixtures exercise interactions independently; the separate Android Em
 
 ## Latest completed run
 
-Refactoring validation date: October 15, 2026. No physical device was accessed.
+Product experience validation date: October 15, 2026. No physical device was accessed.
 
-- **19 JVM tests passed**, with zero failures/errors.
-- **14 native tests passed** on the round Wear OS API 37 emulator, with no skipped assumptions. This includes the public installer’s required-consent callback and refusal of requests after a session deadline.
-- **Two round UI tests passed again** at 192 dp / 1.3x text: reachable review actions and a decodable QR whose full square fits inside the circular bezel. Size, density and font scale were restored.
-- **13 browser UI checks passed** on Chromium 140.0.7339.16 across four viewport widths and both themes, with zero JavaScript errors.
+- **21 JVM tests passed**, with zero failures/errors.
+- **17 native tests passed** on the round Wear OS API 37 emulator, with no skipped assumptions. This includes the public installer’s required-consent callback and refusal of requests after a session deadline.
+- **Five round UI tests passed again** at 192 dp / 1.3x text: the initial receiving action stays visible, review/approval/error/success controls are reachable, connection details and transfer feedback work, and a decodable QR fits inside the circular bezel. Size, density and font scale were restored.
+- **16 browser UI checks passed** on Chromium 140.0.7339.16 across four viewport widths and both themes, including connection recovery, keyboard focus, reduced motion and 200% zoom at an effective 320 px layout width, with zero JavaScript errors.
 - **Real Android Emulator Chrome 145.0.7632.218 uploaded the signed fixture directly to the Wear OS Emulator over virtual Wi-Fi**, receiving READY review state. The test dismissed its package, ended receiving and removed its local debug forward.
-- **Clean builds succeeded** for the debug app, instrumentation APK, unit tests, lint and optimized release AAB. Lint has zero errors; three remaining warnings are SDK/Gradle/library update notices, not unused code/resources.
+- **Debug, test and release builds succeeded** for the debug app, instrumentation APK, unit tests, lint and optimized release AAB. Lint has zero errors; three remaining warnings are SDK/Gradle/library update notices, not unused code/resources.
 - Release inspection found exactly the three bundled web assets, no fixture APK/test payload, no package-visibility queries, one exported launcher and non-exported service/installer receiver. The release dependency graph contains ZXing Core, Kotlin stdlib and its annotations dependency.
 - The unchanged Gradle distribution version is checksum-pinned to its official download. Release output is unsigned when signing inputs are absent; incomplete signing configuration fails clearly.
 
-Detailed XML, text logs, screenshots and browser summaries are generated under app/build/reports and app/build/test-results. They are not source assets or claims of universal hardware/browser support.
+Ten watch product-state screenshots at each tested size, browser screenshots, detailed XML, text logs and browser summaries are generated under app/build/reports and app/build/test-results. They are not source assets or claims of universal hardware/browser support.
 
 ## Hardware-specific release matrix
 

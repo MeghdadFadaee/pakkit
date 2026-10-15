@@ -10,7 +10,8 @@ const reports = path.resolve(__dirname, '../app/build/reports/validation');
 let state = 'waiting',
   failure = false,
   hold = false,
-  bytesReceived = 0;
+  bytesReceived = 0,
+  disconnected = false;
 const server = http.createServer(async (request, response) => {
   response.setHeader('Cache-Control', 'no-store');
   const routes = {
@@ -28,6 +29,10 @@ const server = http.createServer(async (request, response) => {
   if (request.headers.authorization !== 'Bearer test-key') {
     response.writeHead(403).end('{}');
   } else if (request.url === '/api/status') {
+    if (disconnected) {
+      response.writeHead(503).end('{}');
+      return;
+    }
     response.end(
       JSON.stringify({
         state,
@@ -37,7 +42,7 @@ const server = http.createServer(async (request, response) => {
       }),
     );
   } else if (request.url === '/api/upload') {
-    bytesReceived = 0;
+    ((bytesReceived = 0), (disconnected = false));
     for await (const chunk of request) bytesReceived += chunk.length;
     if (hold) return; // Cancellation while awaiting a response.
     if (failure)
@@ -102,10 +107,7 @@ const server = http.createServer(async (request, response) => {
       mimeType: 'text/plain',
       buffer: Buffer.from('test'),
     });
-    await page
-      .getByRole('status')
-      .getByText('Choose a complete .apk file', { exact: false })
-      .waitFor();
+    await page.locator('#message').getByText('Choose a single APK', { exact: false }).waitFor();
     checks++;
     const file = {
       name: 'test.apk',
@@ -114,30 +116,67 @@ const server = http.createServer(async (request, response) => {
     };
     await page.locator('#file').setInputFiles(file);
     failure = true;
-    await page.getByRole('button', { name: 'Send to my watch' }).click();
+    await page.getByRole('button', { name: 'Send to watch' }).click();
     await page
-      .getByRole('status')
+      .locator('#message')
       .getByText('This APK is not compatible with your watch.')
       .waitFor();
     checks++;
     failure = false;
-    await page.getByRole('button', { name: 'Send to my watch' }).click();
-    await page.getByRole('heading', { name: 'Over to your wrist.' }).waitFor();
+    await page.getByRole('button', { name: 'Send to watch' }).click();
+    await page.getByRole('heading', { name: 'Made it to your watch' }).waitFor();
     assert.equal(bytesReceived, file.buffer.length);
     state = 'confirm';
-    await page.getByRole('heading', { name: 'Your watch. Your call.' }).waitFor();
+    await page.getByRole('heading', { name: 'One tap closer' }).waitFor();
+    state = 'installing';
+    await page.getByRole('heading', { name: 'Getting ready', exact: true }).waitFor();
+    state = 'failed';
+    await page.getByRole('heading', { name: 'Let’s try that again' }).waitFor();
+    assert.equal(await page.locator('#result').getAttribute('data-state'), 'failed');
+    checks++;
     state = 'installed';
     await page.getByRole('heading', { name: 'Looks good on you.' }).waitFor();
     state = 'waiting';
-    await page.getByRole('button', { name: 'Choose another APK' }).click();
+    await page.getByRole('button', { name: 'Send another app' }).click();
     checks++;
     await page.locator('#file').setInputFiles(file);
     hold = true;
-    await page.getByRole('button', { name: 'Send to my watch' }).click();
+    await page.getByRole('button', { name: 'Send to watch' }).click();
     await page.getByRole('button', { name: 'Cancel transfer' }).click();
-    await page.getByRole('status').getByText('Transfer cancelled.', { exact: false }).waitFor();
+    await page.locator('#message').getByText('Transfer cancelled.', { exact: false }).waitFor();
+    checks++;
+    disconnected = true;
+    await page.getByText('Watch out of reach', { exact: true }).waitFor();
+    assert.equal(await page.locator('#send').isDisabled(), true);
+    disconnected = false;
+    await page.getByText('Connected to your watch', { exact: true }).waitFor();
     checks++;
     await page.getByRole('button', { name: 'Change color theme' }).click();
+    await page.setViewportSize({ width: 640, height: 1136 });
+    await page.evaluate(() => {
+      document.body.style.zoom = '2';
+    });
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
+      false,
+      '200% zoom reflows',
+    );
+    await page.evaluate(() => {
+      document.body.style.zoom = '';
+    });
+    await page.getByRole('button', { name: 'Remove selected file' }).click();
+    await page.locator('#choose').focus();
+    assert.equal(
+      await page.locator('#choose').evaluate((el) => el === document.activeElement),
+      true,
+    );
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    assert.equal(
+      await page.locator('.parcel').evaluate((el) => getComputedStyle(el).animationName),
+      'none',
+    );
+    checks++;
+
     assert.deepEqual(errors, []);
     const result = {
       browser: await browser.version(),

@@ -9,24 +9,28 @@ import java.util.zip.ZipFile
 object PackageInspector {
     @Suppress("DEPRECATION")
     fun inspect(context: Context, file: File, hash: String): Apk {
-        require(file.length() in 1..ApkRules.MAX_BYTES) { "Choose an APK up to 50 MiB." }
+        requireUser(file.length() in 1..ApkRules.MAX_BYTES) { "Choose an APK up to 50 MB." }
         val abis = mutableSetOf<String>()
         ZipFile(file).use { zip ->
-            require(zip.getEntry("AndroidManifest.xml") != null) {
+            requireUser(zip.getEntry("AndroidManifest.xml") != null) {
                 "This file is not an Android APK."
             }
-            require(zip.size() < 100_000) { "This archive contains too many entries." }
+            requireUser(zip.size() < 100_000) {
+                "This file is too complex to open. Try another APK."
+            }
             var expanded = 0L
             zip.entries().asSequence().forEach { entry ->
-                require(entry.size >= 0 && entry.size <= 128L * 1024 * 1024) {
-                    "This APK contains an unusually large archive entry."
+                requireUser(entry.size >= 0 && entry.size <= 128L * 1024 * 1024) {
+                    "This app is too large to unpack. Try a smaller APK."
                 }
                 expanded += entry.size
-                require(expanded <= 200L * 1024 * 1024) {
-                    "This APK expands beyond Pakkit’s package limit."
+                requireUser(expanded <= 200L * 1024 * 1024) {
+                    "This app is too large to unpack. Try a smaller APK."
                 }
                 if (entry.name == "AndroidManifest.xml")
-                    require(entry.size <= 2 * 1024 * 1024) { "This APK manifest is too large." }
+                    requireUser(entry.size <= 2 * 1024 * 1024) {
+                        "This file can’t be opened. Try another APK."
+                    }
                 val parts = entry.name.split('/')
                 if (parts.size >= 3 && parts[0] == "lib" && entry.name.endsWith(".so"))
                     abis += parts[1]
@@ -36,17 +40,16 @@ object PackageInspector {
             context.packageManager.getPackageArchiveInfo(
                 file.path,
                 PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_CONFIGURATIONS,
-            )
-                ?: error(
-                    "Android could not read this APK. Split packages and bundles are not supported.",
-                )
-        require(info.splitNames.isNullOrEmpty()) {
-            "Choose a complete, single APK rather than a split package."
+            ) ?: throw UserMessage("This file can’t be opened. Choose a complete APK.")
+        requireUser(info.splitNames.isNullOrEmpty()) {
+            "This is only part of an app. Choose a complete APK."
         }
-        require(info.signingInfo?.apkContentsSigners?.isNotEmpty() == true) {
-            "This APK has no readable signing certificate."
+        requireUser(info.signingInfo?.apkContentsSigners?.isNotEmpty() == true) {
+            "This app’s signature can’t be verified. Get a fresh copy from its source."
         }
-        require(info.packageName != context.packageName) { "Update Pakkit through Google Play." }
+        requireUser(info.packageName != context.packageName) {
+            "Update Pakkit through Google Play."
+        }
         val app = requireNotNull(info.applicationInfo)
         app.sourceDir = file.path
         app.publicSourceDir = file.path
@@ -57,22 +60,22 @@ object PackageInspector {
             .use { xml ->
                 while (xml.next() != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
                     if (xml.eventType != org.xmlpull.v1.XmlPullParser.START_TAG) continue
-                    require(xml.name != "uses-split") {
-                        "Choose a complete APK; this file requires other splits."
+                    requireUser(xml.name != "uses-split") {
+                        "This is only part of an app. Choose a complete APK."
                     }
                     if (xml.name == "manifest")
-                        require(xml.getAttributeValue(null, "split").isNullOrEmpty()) {
-                            "This is a split APK. Choose a complete APK."
+                        requireUser(xml.getAttributeValue(null, "split").isNullOrEmpty()) {
+                            "This is only part of an app. Choose a complete APK."
                         }
                     if (xml.name == "application")
-                        require(
+                        requireUser(
                             !xml.getAttributeBooleanValue(
                                 "http://schemas.android.com/apk/res/android",
                                 "isSplitRequired",
                                 false,
-                            ),
+                            )
                         ) {
-                            "This APK requires additional splits."
+                            "This is only part of an app. Choose a complete APK."
                         }
                 }
             }
@@ -89,17 +92,17 @@ object PackageInspector {
     }
 
     fun checkForWatch(apk: Apk, sdk: Int, abis: Set<String>, free: Long) {
-        require(apk.minSdk <= sdk) {
-            "This APK needs Android API ${apk.minSdk}; your watch runs API $sdk."
+        requireUser(apk.minSdk <= sdk) {
+            "This app needs a newer version of Android. Check your watch for updates."
         }
-        require(ApkRules.compatibleAbis(apk.abis, abis)) {
-            "This APK was built for a different processor."
+        requireUser(ApkRules.compatibleAbis(apk.abis, abis)) {
+            "This version doesn’t work on your watch. Try a version made for it."
         }
         requireSpace(apk.bytes, free)
     }
 
     fun requireSpace(bytes: Long, free: Long) {
-        require(free > bytes * 3 + 20 * 1024 * 1024) {
+        requireUser(free > bytes * 3 + 20 * 1024 * 1024) {
             "Free more storage on your watch, then try again."
         }
     }

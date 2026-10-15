@@ -34,8 +34,8 @@ const path = require('node:path');
         path.resolve(__dirname, '../qa/fixture/build/outputs/apk/debug/qaFixture-debug.apk'),
       ),
     });
-    await page.getByRole('button', { name: 'Send to my watch' }).click();
-    await page.getByRole('heading', { name: 'Over to your wrist.' }).waitFor({ timeout: 30000 });
+    await page.getByRole('button', { name: 'Send to watch' }).click();
+    await page.getByRole('heading', { name: 'Made it to your watch' }).waitFor({ timeout: 30000 });
     await page.screenshot({
       path: path.join(reports, 'android-browser-review.png'),
       fullPage: true,

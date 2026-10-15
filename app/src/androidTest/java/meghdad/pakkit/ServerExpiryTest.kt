@@ -28,7 +28,7 @@ class ServerExpiryTest : WatchTest() {
                     socket.getInputStream().bufferedReader().readText()
                 }
             assertTrue(response.startsWith("HTTP/1.1 400"))
-            assertTrue(response.contains("session ended"))
+            assertTrue(response.contains("didn’t arrive"))
             assertNull(store.pending())
         }
     }

@@ -8,7 +8,7 @@ data class PendingApk(
     val created: Long,
     val apk: Apk,
     val state: InstallState = InstallState.READY,
-    val detail: String = "Review this app and approve installation on your watch.",
+    val detail: String = "Ready when you are.",
     val sessionId: Int? = null,
 ) {
     init {

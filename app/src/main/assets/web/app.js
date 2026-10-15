@@ -13,10 +13,20 @@ $('theme').onclick = () => {
 };
 // Keep the secret out of subsequent navigation, referrers and visible browser history.
 if (token) history.replaceState(null, '', location.pathname);
+function setText(id, value) {
+  if ($(id).textContent !== value) $(id).textContent = value;
+}
 function message(text = '') {
-  $('message').textContent = text;
+  setText('message', text);
 }
 function panel(id) {
+  const step = id === 'progress-panel' ? 1 : id === 'result' ? 2 : 0;
+  document.querySelectorAll('.steps li').forEach((item, index) => {
+    if (index === step) item.setAttribute('aria-current', 'step');
+    else item.removeAttribute('aria-current');
+    item.classList.toggle('complete', index < step);
+  });
+  $('progress-panel').setAttribute('aria-busy', String(id === 'progress-panel'));
   ['dropzone', 'selection', 'progress-panel', 'result'].forEach(
     (key) => ($(key).hidden = key !== id),
   );
@@ -30,16 +40,14 @@ function selected(next) {
     next.size === 0 ||
     next.size > 50 * 1024 * 1024
   ) {
-    message(
-      'Choose a complete .apk file up to 50 MiB. App bundles and split packages aren’t supported.',
-    );
+    message('Choose a single APK up to 50 MB. Bundles and split APKs won’t work here.');
     return;
   }
   file = next;
   $('filename').textContent = file.name;
-  $('filesize').textContent =
-    (file.size / 1048576).toFixed(2) + ' MiB · ready for its next adventure';
+  $('filesize').textContent = (file.size / 1048576).toFixed(1) + ' MB · ready to send';
   panel('selection');
+  $('send').focus({ preventScroll: true });
 }
 $('choose').onclick = () => $('file').click();
 $('file').onchange = () => {
@@ -50,6 +58,7 @@ $('remove').onclick = () => {
   file = null;
   panel('dropzone');
   message();
+  $('choose').focus({ preventScroll: true });
 };
 const zone = $('dropzone');
 ['dragenter', 'dragover'].forEach((name) =>
@@ -72,9 +81,10 @@ window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
 function result(title, detail, success = false) {
   panel('result');
-  $('result-title').textContent = title;
-  $('result-detail').textContent = detail;
+  setText('result-title', title);
+  setText('result-detail', detail);
   $('result-icon').textContent = success ? '✓' : '↗';
+  $('result').dataset.state = success ? 'success' : 'waiting';
   $('again').hidden = true;
 }
 $('send').onclick = () => {
@@ -83,8 +93,10 @@ $('send').onclick = () => {
   panel('progress-panel');
   $('progress').value = 0;
   $('percentage').textContent = '0%';
-  $('progress-title').textContent = 'On its way.';
+  $('progress-title').textContent = 'On its way';
+  $('progress-detail').textContent = 'Keep this page open. Your app is on its way.';
   $('cancel').hidden = false;
+  $('cancel').focus({ preventScroll: true });
   const xhr = new XMLHttpRequest();
   upload = xhr;
   xhr.open('POST', '/api/upload');
@@ -97,15 +109,15 @@ $('send').onclick = () => {
     $('progress').value = percent;
     $('percentage').textContent = percent + '%';
     if (percent === 100) {
-      $('progress-title').textContent = 'A final check.';
-      $('progress-detail').textContent =
-        'Your watch is checking the package. Installation still needs your approval.';
+      $('progress-title').textContent = 'Just checking…';
+      $('progress-detail').textContent = 'Your watch is getting your app ready.';
     }
   };
   const failed = (text) => {
     upload = null;
     panel('selection');
     message(text);
+    $('send').focus({ preventScroll: true });
   };
   xhr.onload = () => {
     upload = null;
@@ -113,25 +125,23 @@ $('send').onclick = () => {
     try {
       data = JSON.parse(xhr.responseText);
     } catch {
-      failed('The watch returned an unexpected response. Try a new session.');
+      failed('We couldn’t finish the transfer. Open a fresh link from your watch.');
       return;
     }
     if (xhr.status !== 200) {
-      failed(data.error || 'The file could not be transferred. Try again.');
+      failed(data.error || 'Your app didn’t arrive. Try sending it again.');
       return;
     }
     pending = true;
     file = null;
-    result(
-      'Over to your wrist.',
-      'Review ' + data.label + ' and approve installation on your watch.',
-    );
+    result('Made it to your watch', 'Review ' + data.label + ' on your watch.');
     poll();
   };
   xhr.onerror = () =>
-    failed('The connection was interrupted. Keep both devices on the same Wi-Fi and try again.');
-  xhr.ontimeout = () => failed('The transfer timed out. Start a new watch session and try again.');
-  xhr.onabort = () => failed('Transfer cancelled. Check your watch before trying again.');
+    failed('Connection lost. Check that both devices are on the same Wi-Fi, then try again.');
+  xhr.ontimeout = () =>
+    failed('That took too long. Open a fresh link from your watch and try again.');
+  xhr.onabort = () => failed('Transfer cancelled. Your app may have arrived—check your watch.');
   xhr.send(file);
 };
 $('cancel').onclick = () => upload?.abort();
@@ -160,10 +170,11 @@ async function poll() {
     });
     if (response.status === 403) {
       online = false;
+      document.querySelector('.connection').dataset.online = 'false';
       $('access-form').hidden = false;
       $('choose').disabled = true;
-      $('connection').textContent = 'Private link needed';
-      message('Use the current QR code or private session key shown on your watch.');
+      $('connection').textContent = 'Let’s connect';
+      message('Scan the code on your watch to reconnect.');
       return;
     }
     if (!response.ok) throw new Error('disconnected');
@@ -172,30 +183,30 @@ async function poll() {
     online = true;
     $('send').disabled = false;
     $('access-form').hidden = true;
-    $('connection').textContent = 'Connected to your watch';
+    setText('connection', 'Connected to your watch');
+    document.querySelector('.connection').dataset.online = 'true';
     $('expiry').textContent =
       '· ' +
       Math.floor(data.expiresIn / 60) +
       ':' +
       String(data.expiresIn % 60).padStart(2, '0') +
-      ' left';
+      ' remaining';
     $('choose').disabled = false;
     if (upload) return;
     const waiting = data.state === 'waiting';
     if (!waiting) {
       pending = true;
       const states = {
-        ready: ['Over to your wrist.', 'Review ' + data.label + ' and tap Install on your watch.'],
-        confirm: [
-          'Your watch. Your call.',
-          'Continue to the system approval screen on your watch.',
-        ],
-        installing: ['One last step.', 'Follow the system installer on your watch.'],
-        installed: ['Looks good on you.', data.label + ' is installed. Open it on your watch.'],
-        failed: ['A small detour.', data.detail],
+        ready: ['Made it to your watch', 'Review ' + data.label + ' on your watch.'],
+        confirm: ['One tap closer', 'Approve installation on your watch.'],
+        installing: ['Getting ready', 'Your watch will ask you to approve installation.'],
+        installed: ['Looks good on you.', data.label + ' is ready. Enjoy it on your watch.'],
+        failed: ['Let’s try that again', data.detail],
       };
       const content = states[data.state] || ['Check your watch.', data.detail];
       result(content[0], content[1], data.state === 'installed');
+      $('result').dataset.state = data.state;
+      if (data.state === 'failed') $('result-icon').textContent = '!';
     } else if (pending) {
       pending = false;
       result('Ready for another?', 'Your watch is ready to receive a new app.', true);
@@ -203,12 +214,13 @@ async function poll() {
     }
   } catch {
     online = false;
+    document.querySelector('.connection').dataset.online = 'false';
     $('send').disabled = true;
-    $('connection').textContent = 'Watch connection paused';
+    setText('connection', 'Watch out of reach');
     $('choose').disabled = true;
     if (!upload)
       message(
-        'Keep your watch on Wi-Fi. If the session ended, start a new one and open its new link.',
+        'Check your watch’s Wi-Fi. If receiving has stopped, start again and scan the new code.',
       );
   } finally {
     polling = false;
@@ -217,7 +229,7 @@ async function poll() {
 if (!token) {
   $('access-form').hidden = false;
   $('choose').disabled = true;
-  $('connection').textContent = 'Private link needed';
+  $('connection').textContent = 'Let’s connect';
 }
 poll();
 setInterval(() => {

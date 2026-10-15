@@ -61,11 +61,13 @@ def tap_text(serial, label, attempts=6):
 
 
 def session_url(serial):
+    tap_text(serial, "View link")
     for _ in range(6):
         tree = ui(serial)
         for node in tree.iter("node"):
             value = node.get("text", "")
             if value.startswith("http://") and "#" in value:
+                tap_text(serial, "Back to code")
                 return value
         bounds = next(tree.iter("node")).get("bounds")
         _, _, width, height = map(int, re.findall(r"\d+", bounds))

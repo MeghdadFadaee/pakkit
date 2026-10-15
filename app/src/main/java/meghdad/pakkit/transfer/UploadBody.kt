@@ -1,6 +1,7 @@
 package meghdad.pakkit.transfer
 
 import java.io.InputStream
+import meghdad.pakkit.apk.requireUser
 
 /** Exact-length stream: truncation is an error, and extra bytes cannot become another request. */
 internal class UploadBody(
@@ -22,7 +23,7 @@ internal class UploadBody(
         if (count == 0) return 0
         if (received == length) return -1
         val read = input.read(bytes, offset, minOf(count.toLong(), length - received).toInt())
-        require(read > 0) { "Transfer interrupted. Choose the file again." }
+        requireUser(read > 0) { "The transfer stopped early. Choose the file and try again." }
         received += read
         val now = clock()
         if (now - lastUpdate >= 250_000_000 || received == length) {

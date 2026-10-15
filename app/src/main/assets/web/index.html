@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="color-scheme" content="dark light" />
     <meta name="referrer" content="no-referrer" />
-    <title>Pakkit — Pocket to Wrist.</title>
+    <title>Pakkit — Pack it. Send it. Wear it.</title>
     <link rel="stylesheet" href="/style.css" />
     <script src="/app.js" defer></script>
   </head>
@@ -13,8 +13,8 @@
     <div class="ambient" aria-hidden="true"></div>
     <div class="shell">
       <header>
-        <a class="wordmark" href="/" aria-label="Pakkit home"
-          ><span class="brand-icon" aria-hidden="true"
+        <div class="wordmark" aria-label="Pakkit">
+          <span class="brand-icon" aria-hidden="true"
             ><svg viewBox="0 0 40 40" fill="none">
               <path d="M9 20L20 25L31 20V31L20 36L9 31Z" fill="#C9B8FF" />
               <path d="M20 25V36M9 20L20 15L31 20" stroke="white" stroke-width="1.3" />
@@ -31,20 +31,18 @@
                 transform="rotate(20 22 8)"
                 fill="white"
               /></svg></span
-          >Pakkit<span class="brand-dot">.</span></a
-        >
-        <div class="connection">
+          >Pakkit<span class="brand-dot">.</span>
+        </div>
+        <div class="connection" data-online="false" role="status" aria-live="polite">
           <span></span><span id="connection">Connecting to your watch</span>
         </div>
         <button id="theme" class="icon-button" aria-label="Change color theme">◐</button>
       </header>
       <main>
         <section class="intro">
-          <p class="eyebrow">A LITTLE MAGIC. RIGHT ON YOUR WRIST.</p>
-          <h1>Pocket<br />to <em>Wrist.</em></h1>
-          <p class="lede">
-            Your favorite apps, with a shorter journey.<br />One watch. Any browser. All yours.
-          </p>
+          <p class="eyebrow">A LITTLE POSSIBILITY. ON YOUR WRIST.</p>
+          <h1>Pack it.<br />Send it.<br /><em>Wear it.</em></h1>
+          <p class="lede">Give your next app a place on your wrist.</p>
           <div class="parcel-stage" aria-hidden="true">
             <div class="orbit orbit-one"></div>
             <div class="orbit orbit-two"></div>
@@ -136,39 +134,46 @@
               </g>
               <path d="M69 86L72 78L75 86L83 89L75 92L72 100L69 92L61 89Z" fill="#87F6E3" />
               <path d="M284 69L287 61L290 69L298 72L290 75L287 83L284 75L276 72Z" fill="#BA9BFF" />
-              <circle cx="278" cy="246" r="3" fill="#77EFD8" /></svg
-            ><span class="stage-caption">PACK IT. SEND IT. WEAR IT.</span>
+              <circle cx="278" cy="246" r="3" fill="#77EFD8" />
+            </svg>
           </div>
         </section>
         <section class="transfer-card" aria-labelledby="card-title">
           <div class="card-top">
-            <span class="pill">DIRECT TO YOUR WATCH</span
+            <span class="pill">YOUR NEXT APP</span
             ><span class="private-label">↗ On your Wi-Fi</span>
           </div>
-          <h2 id="card-title">A new home<br />for your next app.</h2>
-          <p class="card-description">Choose a compatible APK. We’ll take it from here.</p>
+          <h2 id="card-title">Good things<br />come in Pakkits.</h2>
+          <p class="card-description">Choose an app for your watch. We’ll deliver it.</p>
           <form id="access-form" hidden>
-            <label for="access">Private session key</label>
-            <p>Scan the QR code or enter the key after # in your watch’s link.</p>
-            <input id="access" autocomplete="off" spellcheck="false" required /><button
-              class="primary"
-              type="submit"
-            >
-              Connect to watch
-            </button>
+            <label for="access">Connect your watch</label>
+            <p>Scan the code on your watch, or paste its full link here.</p>
+            <input
+              id="access"
+              type="password"
+              aria-label="Watch link"
+              autocomplete="off"
+              spellcheck="false"
+              required
+            /><button class="primary" type="submit">Connect to watch</button>
           </form>
+          <ol class="steps" aria-label="Transfer steps">
+            <li aria-current="step">Choose</li>
+            <li>Send</li>
+            <li>Wear</li>
+          </ol>
           <div id="dropzone" class="dropzone">
             <div class="upload-symbol" aria-hidden="true">↑</div>
-            <strong>Drop a little possibility.</strong
-            ><span>Drag your APK here, or choose a file below.</span
-            ><button id="choose" class="primary" type="button">
-              Choose an APK <span aria-hidden="true">↗</span></button
+            <strong>A little app. A new possibility.</strong
+            ><span>Drop an APK here to get started.</span
+            ><button id="choose" class="primary" type="button" disabled>
+              Choose app <span aria-hidden="true">↗</span></button
             ><input
               id="file"
               type="file"
               accept=".apk,application/vnd.android.package-archive"
               hidden
-            /><small>Single .apk file · up to 50 MiB</small>
+            /><small>APK files · up to 50 MB</small>
           </div>
           <div id="selection" hidden>
             <div class="file-row">
@@ -177,51 +182,44 @@
               <button id="remove" class="icon-button" aria-label="Remove selected file">×</button>
             </div>
             <button id="send" class="primary" type="button">
-              Send to my watch <span aria-hidden="true">→</span>
+              Send to watch <span aria-hidden="true">→</span>
             </button>
           </div>
           <div id="progress-panel" hidden>
             <div class="progress-heading">
-              <strong id="progress-title">On its way.</strong><span id="percentage">0%</span>
+              <strong id="progress-title">On its way</strong><span id="percentage">0%</span>
             </div>
             <progress id="progress" max="100" value="0" aria-label="APK upload progress"></progress>
-            <p id="progress-detail">Keep this page open while your app travels.</p>
+            <p id="progress-detail">Keep this page open. Your app is on its way.</p>
             <button id="cancel" class="secondary" type="button">Cancel transfer</button>
           </div>
-          <div id="result" hidden>
+          <div id="result" role="status" aria-live="polite" aria-atomic="true" hidden>
             <div id="result-icon" aria-hidden="true">✓</div>
-            <h3 id="result-title">Over to your wrist.</h3>
-            <p id="result-detail">Review the app and confirm installation on your watch.</p>
-            <button id="again" class="secondary" type="button" hidden>Choose another APK</button>
+            <h3 id="result-title">Made it to your watch</h3>
+            <p id="result-detail">Tap Install on your watch when you’re ready.</p>
+            <button id="again" class="secondary" type="button" hidden>Send another app</button>
           </div>
           <p id="message" role="status" aria-live="polite"></p>
           <div class="consent-note">
             <span aria-hidden="true">✧</span>
             <p>
-              Your watch. Your call.<br /><span
-                >Nothing installs until you approve it on your watch.</span
-              >
+              Your watch. Your call.<br /><span>You approve every installation on your watch.</span>
             </p>
           </div>
         </section>
       </main>
-      <section class="journey" aria-label="How it works">
-        <div>
-          <span>01</span>
-          <p><strong>Pick your app.</strong><br />A complete APK you trust.</p>
-        </div>
-        <div>
-          <span>02</span>
-          <p><strong>Send it over.</strong><br />Straight across your Wi-Fi.</p>
-        </div>
-        <div>
-          <span>03</span>
-          <p><strong>Make it yours.</strong><br />Approve it on your wrist.</p>
-        </div>
-      </section>
       <footer>
-        <span>Pakkit <span class="muted">/ A lighter way to wear your apps.</span></span
-        ><span>Local HTTP session · trusted Wi-Fi only <span id="expiry"></span></span>
+        <span>Pakkit <span class="muted">/ Pack it. Send it. Wear it.</span></span
+        ><span
+          ><details class="connection-help">
+            <summary>About this connection</summary>
+            <p>
+              Use Wi-Fi you trust. Files travel across your network without encryption. Keep your
+              watch’s link private.
+            </p>
+          </details>
+          <span id="expiry"></span
+        ></span>
       </footer>
     </div>
   </body>

@@ -29,11 +29,11 @@ object ApkRules {
             if (count < 0) break
             if (count == 0) continue
             total += count
-            require(total <= max) { "Choose an APK up to 50 MiB." }
+            requireUser(total <= max) { "Choose an APK up to 50 MB." }
             hash.update(buffer, 0, count)
             output?.write(buffer, 0, count)
         }
-        require(total > 0) { "This file is empty." }
+        requireUser(total > 0) { "This file is empty. Choose another APK." }
         return total to hash.digest().joinToString("") { "%02x".format(it) }
     }
 }

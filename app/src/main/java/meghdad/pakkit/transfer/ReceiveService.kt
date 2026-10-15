@@ -42,7 +42,7 @@ class ReceiveService : Service() {
                         this@ReceiveService.network == network &&
                             properties.linkAddresses.none { it.address == address }
                     ) {
-                        finish("Wi-Fi address changed. Start a new session.")
+                        finish("Wi-Fi changed. Ready to reconnect?")
                     }
                 }
             }
@@ -50,7 +50,7 @@ class ReceiveService : Service() {
             override fun onLost(network: Network) {
                 main.post {
                     if (network == this@ReceiveService.network)
-                        finish("Wi-Fi disconnected. Start a new session.")
+                        finish("Wi-Fi disconnected. Ready to reconnect?")
                 }
             }
 
@@ -71,7 +71,7 @@ class ReceiveService : Service() {
         manager.createNotificationChannel(
             NotificationChannel(
                 "receive",
-                "Receiving sessions",
+                "App transfers",
                 NotificationManager.IMPORTANCE_LOW,
             ),
         )
@@ -92,8 +92,8 @@ class ReceiveService : Service() {
         val notification =
             Notification.Builder(this, "receive")
                 .setSmallIcon(R.drawable.pakkit_mark)
-                .setContentTitle("Pakkit is ready to receive")
-                .setContentText("Private Wi-Fi session · ends in 10 minutes")
+                .setContentTitle("Ready for your next app")
+                .setContentText("Open Pakkit to connect your browser.")
                 .setContentIntent(open)
                 .setOngoing(true)
                 .addAction(Notification.Action.Builder(null, "End session", stop).build())
@@ -105,7 +105,7 @@ class ReceiveService : Service() {
         )
         Receiving.begin(this)
         deadline = SystemClock.elapsedRealtime() + DURATION_MS
-        main.postDelayed({ finish("Session expired. Start a new session.") }, DURATION_MS)
+        main.postDelayed({ finish("Time’s up. Ready for another app?") }, DURATION_MS)
         try {
             registered = true
             connectivity.requestNetwork(
@@ -117,7 +117,7 @@ class ReceiveService : Service() {
                 25_000,
             )
         } catch (_: Exception) {
-            finish("Wi-Fi is unavailable. Check watch settings.")
+            finish("Can’t reach Wi-Fi. Check your watch’s connection.")
         }
         return START_NOT_STICKY
     }
@@ -142,7 +142,7 @@ class ReceiveService : Service() {
             Receiving.update(this) { it.copy(url = listener.url, detail = "Ready to receive") }
         } catch (error: Exception) {
             android.util.Log.w("PakkitReceive", "Cannot open receiving session", error)
-            finish("Could not open local Wi-Fi. Check the network and try again.")
+            finish("Couldn’t connect. Check Wi-Fi and try again.")
         }
     }
 
