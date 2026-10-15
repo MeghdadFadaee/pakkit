@@ -145,7 +145,8 @@
           </div>
           <h2 id="card-title">Good things<br />come in Pakkits.</h2>
           <p class="card-description">Choose an app for your watch. We’ll deliver it.</p>
-          <div id="pairing" role="status" aria-live="polite">
+          <noscript><p>Turn on JavaScript in your browser to send apps to your watch.</p></noscript>
+          <div id="pairing" data-panel role="status" aria-live="polite">
             <div class="pairing-symbol" aria-hidden="true">↗</div>
             <h3 id="pairing-title">A quick hello</h3>
             <p id="pairing-detail">Tap Allow browser on your watch.</p>
@@ -156,7 +157,7 @@
             <li>Send</li>
             <li>Wear</li>
           </ol>
-          <div id="dropzone" class="dropzone">
+          <div id="dropzone" data-panel class="dropzone">
             <div class="upload-symbol" aria-hidden="true">↑</div>
             <strong>A little app. A new possibility.</strong
             ><span>Drop an APK here to get started.</span
@@ -169,7 +170,7 @@
               hidden
             /><small>APK files · sent directly to your watch</small>
           </div>
-          <div id="selection" hidden>
+          <div id="selection" data-panel hidden>
             <div class="file-row">
               <div class="file-icon" aria-hidden="true">◇</div>
               <div><strong id="filename"></strong><small id="filesize"></small></div>
@@ -179,7 +180,7 @@
               Send to watch <span aria-hidden="true">→</span>
             </button>
           </div>
-          <div id="progress-panel" hidden>
+          <div id="progress-panel" data-panel hidden>
             <div class="progress-heading">
               <strong id="progress-title">On its way</strong><span id="percentage">0%</span>
             </div>
@@ -187,7 +188,7 @@
             <p id="progress-detail">Keep this page open. Your app is on its way.</p>
             <button id="cancel" class="secondary" type="button">Cancel transfer</button>
           </div>
-          <div id="result" role="status" aria-live="polite" aria-atomic="true" hidden>
+          <div id="result" data-panel role="status" aria-live="polite" aria-atomic="true" hidden>
             <div id="result-icon" aria-hidden="true">✓</div>
             <h3 id="result-title">Made it to your watch</h3>
             <p id="result-detail">Tap Install on your watch when you’re ready.</p>
@@ -213,6 +214,10 @@
             </p>
           </details>
         </span>
+        <span class="legal-links"
+          ><a href="/privacy.txt" target="_blank" rel="noopener">Privacy</a
+          ><a href="/licenses.txt" target="_blank" rel="noopener">Open-source licenses</a></span
+        >
       </footer>
     </div>
   </body>

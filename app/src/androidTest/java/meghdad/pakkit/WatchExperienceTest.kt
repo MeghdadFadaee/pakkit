@@ -27,6 +27,11 @@ class WatchExperienceTest : WatchTest() {
     private fun screen() = views(requireNotNull(activity).window.decorView)
 
     private fun capture(name: String) {
+        await {
+            var focused = false
+            instrumentation.runOnMainSync { focused = activity?.hasWindowFocus() == true }
+            focused
+        }
         instrumentation.waitForIdleSync()
         Thread.sleep(220) // Finite screen entrance; screenshots capture the settled UI.
         val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
@@ -54,6 +59,83 @@ class WatchExperienceTest : WatchTest() {
             }
             scroll.scrollTo(0, 0)
         }
+    }
+
+    @Test
+    fun privacyIsAvailableWithoutStartingReceiving() {
+        openWatch()
+        val monitor =
+            instrumentation.addMonitor(
+                meghdad.pakkit.ui.AboutActivity::class.java.name,
+                null,
+                false,
+            )
+        instrumentation.runOnMainSync {
+            screen().filterIsInstance<Button>().single { it.text == "Privacy" }.performClick()
+        }
+        activity = requireNotNull(monitor.waitForActivityWithTimeout(5000))
+        instrumentation.removeMonitor(monitor)
+        instrumentation.waitForIdleSync()
+        instrumentation.runOnMainSync {
+            assertTrue(
+                screen().filterIsInstance<TextView>().any { it.text.contains("without encryption") }
+            )
+        }
+        assertFalse(Receiving.state.active)
+        assertActionsReachable()
+        capture("privacy")
+    }
+
+    @Test
+    fun uploadProgressKeepsFocusAndViewIdentity() {
+        val owner = Any()
+        try {
+            Receiving.begin(owner)
+            Receiving.update(owner) {
+                it.copy(
+                    url = "http://10.0.2.16:8787/",
+                    total = Long.MAX_VALUE,
+                    received = Long.MAX_VALUE / 2,
+                )
+            }
+            openWatch()
+            val original = screen().filterIsInstance<RoundScrollView>().single()
+            instrumentation.runOnMainSync {
+                screen()
+                    .filterIsInstance<Button>()
+                    .single { it.text == "Stop receiving" }
+                    .requestFocus()
+            }
+            val focused = requireNotNull(activity).currentFocus
+            Receiving.update(owner) { it.copy(received = Long.MAX_VALUE) }
+            instrumentation.waitForIdleSync()
+            instrumentation.runOnMainSync {
+                assertSame(original, screen().filterIsInstance<RoundScrollView>().single())
+                assertSame(focused, requireNotNull(activity).currentFocus)
+                assertTrue(screen().filterIsInstance<TextView>().any { it.text == "100%" })
+                assertTrue(
+                    screen().filterIsInstance<TextView>().any { it.text == "Just checking…" }
+                )
+            }
+        } finally {
+            Receiving.end(owner, "Receiving stopped")
+        }
+    }
+
+    @Test
+    fun externalActivityExtrasCannotSupplyAnInstallerIntent() {
+        val apk = fixture()
+        store.stage(apk.copy(state = InstallState.CONFIRM, sessionId = 123))
+        val intent =
+            android.content
+                .Intent(context, WatchActivity::class.java)
+                .putExtra("job", apk.id)
+                .putExtra("approval", android.content.Intent("untrusted.action"))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        instrumentation.waitForIdleSync()
+        assertNull(meghdad.pakkit.install.PendingApproval.intent)
+        openWatch()
     }
 
     @Test

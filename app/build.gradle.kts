@@ -43,6 +43,9 @@ android {
 
 dependencies {
     implementation(libs.zxing)
+    implementation(libs.androidx.core)
+    implementation(libs.wear.ongoing)
+    implementation(libs.splashscreen)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.runner)

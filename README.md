@@ -27,7 +27,7 @@ The current artifacts are development builds. Public distribution requires the c
 | `scripts`    | Emulator-only test runner and ADB helpers                                                                          |
 | `docs`       | Architecture, design, development, platform, privacy and release guidance                                          |
 
-There is one production module and one test-fixture module. Production has one explicit library dependency: ZXing Core for local QR generation. Kotlin’s standard library is supplied by the Android Gradle plugin.
+There is one production module and one test-fixture module. Production uses ZXing Core for local QR generation, AndroidX Wear Ongoing for receiving status, and AndroidX Core/SplashScreen for platform notifications and Wear launch sizing. Kotlin’s standard library is supplied by the Android Gradle plugin. Bundled privacy text and open-source acknowledgements are available from the application.
 
 ## Build
 
@@ -55,4 +55,4 @@ python3 scripts/test-emulators.py --watch emulator-5554 --small --skip-build
 
 For browser tests and real Android-Emulator-to-Wear-Emulator uploads, see [development and testing](docs/DEVELOPMENT.md). Results and screenshots are generated under `app/build/reports/validation`, not checked into source control.
 
-[Restriction audit](docs/RESTRICTIONS.md) · [Architecture](docs/ARCHITECTURE.md) · [Design](docs/DESIGN.md) · [Platform](docs/PLATFORM.md) · [Privacy](docs/PRIVACY.md) · [Release](docs/RELEASE.md) · [Validation](docs/VALIDATION.md)
+[Product review](docs/PRODUCT_REVIEW.md) · [Store listing draft](docs/STORE_LISTING.md) · [Restriction audit](docs/RESTRICTIONS.md) · [Architecture](docs/ARCHITECTURE.md) · [Design](docs/DESIGN.md) · [Platform](docs/PLATFORM.md) · [Privacy](docs/PRIVACY.md) · [Release](docs/RELEASE.md) · [Validation](docs/VALIDATION.md)

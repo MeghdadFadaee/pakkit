@@ -36,6 +36,11 @@ class PackageStoreTest : WatchTest() {
                             }
                             return written
                         }
+
+                        override fun remove(key: String): android.content.SharedPreferences.Editor {
+                            editor.remove(key)
+                            return this
+                        }
                     }
                 }
             }
@@ -45,11 +50,15 @@ class PackageStoreTest : WatchTest() {
             }
         assertTrue(
             runCatching {
-                    PackageStore(wrapped).update(apk.id, InstallState.INSTALLING, "Preparing")
-                }
+                PackageStore(wrapped).update(apk.id, InstallState.INSTALLING, "Preparing")
+            }
                 .isFailure
         )
         assertEquals(apk, store.pending())
+        failNext = true
+        assertTrue(runCatching { PackageStore(wrapped).dismiss(apk.id) }.isFailure)
+        assertEquals(apk, store.pending())
+        assertTrue("Failed removal keeps the original APK", store.file(apk.id).exists())
     }
 
     @Test

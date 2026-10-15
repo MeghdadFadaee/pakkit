@@ -3,9 +3,13 @@
     <style name="Theme.Pakkit" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">#BAA6FF</item>
-        <item name="android:windowBackground">#090B17</item>
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowSwipeToDismiss">true</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowSplashScreenBackground">#090B17</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/pakkit_icon</item>
+    </style>
+    <style name="Theme.Pakkit.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@android:color/black</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/pakkit_splash</item>
+        <item name="postSplashScreenTheme">@style/Theme.Pakkit</item>
     </style>
 </resources>

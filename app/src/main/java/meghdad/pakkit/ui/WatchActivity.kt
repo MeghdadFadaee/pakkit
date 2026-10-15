@@ -16,6 +16,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextClock
+import android.widget.TextView
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 import meghdad.pakkit.R
@@ -42,13 +44,17 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
     private var resumed = false
     private var approvalLaunched: Int? = null
     private var requestedInstallId: String? = null
+    private var progressTitle: TextView? = null
+    private var progressPercent: TextView? = null
+    private var progressDetail: TextView? = null
+    private var progressBar: ProgressBar? = null
     private var qrUrl = ""
     private var qrBitmap: android.graphics.Bitmap? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         store = PackageStore(this)
-        acceptIntent(intent)
         requestedInstallId = savedInstanceState?.getString("requestedInstallId")
         approvalLaunched = savedInstanceState?.getInt("approvalLaunched", -1)?.takeIf { it >= 0 }
         refresh()
@@ -65,22 +71,7 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        acceptIntent(intent)
         refresh()
-    }
-
-    private fun acceptIntent(intent: Intent) {
-        val job = store.pending()
-        @Suppress("DEPRECATION") val approval = intent.getParcelableExtra<Intent>("approval")
-        if (
-            approval != null &&
-                job != null &&
-                job.id == intent.getStringExtra("job") &&
-                job.state == InstallState.CONFIRM
-        ) {
-            PendingApproval.intent = approval
-            PendingApproval.id = job.id
-        }
     }
 
     override fun onResume() {
@@ -207,6 +198,12 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
                     live.active -> "connecting"
                     else -> "home"
                 }
+        // Keep the same view tree while bytes arrive: TalkBack, rotary focus and
+        // scroll position must survive progress updates without repeated layout work.
+        if (stateKey == "uploading" && renderedState == stateKey && error == null) {
+            updateProgress(live)
+            return
+        }
         val previousState = renderedState
         if (stateKey != previousState) error = null
         val y = if (::scroll.isInitialized && stateKey == renderedState) scroll.scrollY else 0
@@ -246,6 +243,18 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             } else {
                 button(getString(R.string.watch_start_receiving), false) { startReceiving() }
+            }
+        }
+        if (
+            live.active &&
+                live.browserRequest == null &&
+                job?.state != InstallState.CONFIRM &&
+                Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+        ) {
+            button(getString(R.string.watch_enable_alerts), false) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 52)
             }
         }
 
@@ -288,35 +297,20 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
         if (url != null) {
             if (live.total > 0) {
                 parcel(48)
-                val percent = (live.received * 100 / live.total).coerceAtMost(100)
-                add(
-                    line(
-                        if (percent == 100L) getString(R.string.watch_just_checking)
-                        else getString(R.string.watch_on_its_way),
-                        22f,
-                        bold = true,
-                    ),
-                    10,
-                )
-                add(line("$percent%", 30f, colors.mint, true), 10)
-                add(
+                progressTitle = line(getString(R.string.watch_on_its_way), 22f, bold = true)
+                add(requireNotNull(progressTitle), 10)
+                progressPercent = line("0%", 30f, colors.mint, true)
+                add(requireNotNull(progressPercent), 10)
+                progressBar =
                     ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
                         max = 100
-                        progress = percent.toInt()
                         progressTintList = android.content.res.ColorStateList.valueOf(colors.mint)
-                        contentDescription = getString(R.string.watch_percent_received, percent)
-                    },
-                    12,
-                )
-                add(
-                    line(
-                        if (percent == 100L) getString(R.string.watch_getting_your_app_ready)
-                        else getString(R.string.watch_keep_your_browser_open),
-                        13f,
-                        colors.secondary,
-                    ),
-                    10,
-                )
+                    }
+                add(requireNotNull(progressBar), 12)
+                progressDetail =
+                    line(getString(R.string.watch_keep_your_browser_open), 13f, colors.secondary)
+                add(requireNotNull(progressDetail), 10)
+                updateProgress(live)
             } else {
                 if (qrUrl != url || qrBitmap == null) {
                     val matrix =
@@ -413,6 +407,31 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
                     error = getString(R.string.watch_wifi_unavailable)
                     refresh()
                 }
+        }
+        if (!live.active)
+            button(getString(R.string.watch_privacy), false) {
+                startActivity(Intent(this, AboutActivity::class.java))
+            }
+    }
+
+    private fun updateProgress(live: Receiving.State) {
+        val percent = ((live.received.toDouble() / live.total) * 100).toInt().coerceIn(0, 100)
+        val title =
+            getString(
+                if (percent == 100) R.string.watch_just_checking else R.string.watch_on_its_way
+            )
+        val detail =
+            getString(
+                if (percent == 100) R.string.watch_getting_your_app_ready
+                else R.string.watch_keep_your_browser_open
+            )
+        if (progressTitle?.text != title) progressTitle?.text = title
+        if (progressDetail?.text != detail) progressDetail?.text = detail
+        val label = "$percent%"
+        if (progressPercent?.text != label) {
+            progressPercent?.text = label
+            progressBar?.progress = percent
+            progressBar?.contentDescription = getString(R.string.watch_percent_received, percent)
         }
     }
 
@@ -548,8 +567,7 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
             InstallState.INSTALLED -> {
                 button(getString(R.string.watch_open_app)) { launch(apk.packageName) }
                 button(getString(R.string.watch_done), false) {
-                    store.dismiss(job.id)
-                    refresh()
+                    dismiss(job)
                 }
             }
         }
@@ -563,6 +581,7 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 52) {
             meghdad.pakkit.install.InstallReceiver.notifyApproval(this)
+            if (Receiving.state.active) startService(Intent(this, ReceiveService::class.java))
             refresh()
         }
     }
@@ -599,7 +618,10 @@ class WatchActivity : Activity(), SharedPreferences.OnSharedPreferenceChangeList
 
     private fun dismiss(job: PendingApk) {
         PendingApproval.clear()
-        store.dismiss(job.id)
+        runCatching { store.dismiss(job.id) }
+            .onFailure {
+                error = it.userMessage("Couldn’t remove this app. Try again.")
+            }
         refresh()
     }
 

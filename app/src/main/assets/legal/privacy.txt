@@ -1,0 +1,17 @@
+Pakkit — Privacy
+
+Pakkit sends the APK you choose directly from your browser to your Wear OS watch over Wi-Fi. There are no accounts, analytics, ads, cloud storage or remote services in Pakkit.
+
+Your connection
+
+Your watch asks before allowing a browser to connect. Access ends when you stop receiving or Pakkit’s process ends. Your browser remembers a random access credential in storage for this watch address. You can remove it using your browser’s site settings. An old credential cannot reopen a stopped session. Browser and device names are hints from the browser; your watch also shows the network address.
+
+Use Wi-Fi you trust. Files and access credentials travel without encryption. Someone with access to your network traffic could read or alter them. Browser approval does not encrypt the connection.
+
+Your files
+
+APKs and their package details are saved in private watch storage. Pakkit checks package information and a file fingerprint before installation; it does not certify that an app is safe. Installation always requires your action and Android’s approval. Android may perform its own checks.
+
+Rejected and interrupted uploads are removed. A received file stays until you remove it, replace a failed review, or finish installation. Files left by an interrupted process are removed when Pakkit next starts. Backups of Pakkit’s private files are disabled. Uninstalling Pakkit removes its private files; apps you installed are separate.
+
+Receiving continues until you stop it or your watch ends it. Losing Wi-Fi interrupts a transfer, and receiving resumes when Wi-Fi returns. Stopping receiving does not cancel an installation already handed to Android.

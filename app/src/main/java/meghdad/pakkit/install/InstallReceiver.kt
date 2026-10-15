@@ -92,7 +92,7 @@ class InstallReceiver : BroadcastReceiver() {
             val apk = PackageStore(context).pending() ?: return
             if (apk.state != InstallState.CONFIRM || PendingApproval.id != apk.id) return
             val sessionId = apk.sessionId ?: return
-            val confirmation = PendingApproval.intent ?: return
+            if (PendingApproval.intent == null) return
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(
                 NotificationChannel(
@@ -106,10 +106,7 @@ class InstallReceiver : BroadcastReceiver() {
                     context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
                         PackageManager.PERMISSION_GRANTED
             ) {
-                val open =
-                    Intent(context, WatchActivity::class.java)
-                        .putExtra("approval", confirmation)
-                        .putExtra("job", apk.id)
+                val open = Intent(context, WatchActivity::class.java)
                 val pending =
                     PendingIntent.getActivity(
                         context,

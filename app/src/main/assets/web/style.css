@@ -890,3 +890,14 @@ small {
   background: #9e82ff12;
   font-size: 28px;
 }
+
+.legal-links {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.legal-links a {
+  color: var(--muted);
+  text-underline-offset: 4px;
+  min-height: 24px;
+}

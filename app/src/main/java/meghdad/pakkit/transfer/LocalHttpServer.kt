@@ -113,7 +113,7 @@ class LocalHttpServer(
                 response.send(
                     200,
                     asset.second,
-                    context.assets.open("web/${asset.first}").use { it.readBytes() },
+                    context.assets.open(asset.first).use { it.readBytes() },
                 )
                 return
             }
@@ -310,9 +310,11 @@ class LocalHttpServer(
         const val PORT = 8787
         private val ASSETS =
             mapOf(
-                "/" to ("index.html" to "text/html; charset=utf-8"),
-                "/style.css" to ("style.css" to "text/css; charset=utf-8"),
-                "/app.js" to ("app.js" to "text/javascript; charset=utf-8"),
+                "/" to ("web/index.html" to "text/html; charset=utf-8"),
+                "/style.css" to ("web/style.css" to "text/css; charset=utf-8"),
+                "/app.js" to ("web/app.js" to "text/javascript; charset=utf-8"),
+                "/privacy.txt" to ("legal/privacy.txt" to "text/plain; charset=utf-8"),
+                "/licenses.txt" to ("legal/licenses.txt" to "text/plain; charset=utf-8"),
             )
     }
 }

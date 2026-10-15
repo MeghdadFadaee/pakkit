@@ -14,11 +14,20 @@ function accessHeaders() {
   } catch {}
   return credential ? { Authorization: 'Bearer ' + credential } : {};
 }
+let savedTheme;
+try {
+  savedTheme = localStorage.getItem('pakkitTheme');
+} catch {}
 const initialTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-document.documentElement.dataset.theme = initialTheme;
+document.documentElement.dataset.theme = ['light', 'dark'].includes(savedTheme)
+  ? savedTheme
+  : initialTheme;
 $('theme').onclick = () => {
   document.documentElement.dataset.theme =
     document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  try {
+    localStorage.setItem('pakkitTheme', document.documentElement.dataset.theme);
+  } catch {}
 };
 function setText(id, value) {
   if ($(id).textContent !== value) $(id).textContent = value;
@@ -27,6 +36,8 @@ function message(text = '') {
   setText('message', text);
 }
 function panel(id) {
+  const active = document.activeElement;
+  const moveFocus = active && active !== document.body && active.closest('[data-panel]')?.id !== id;
   const step = id === 'progress-panel' ? 1 : id === 'result' ? 2 : 0;
   document.querySelectorAll('.steps li').forEach((item, index) => {
     if (index === step) item.setAttribute('aria-current', 'step');
@@ -37,6 +48,14 @@ function panel(id) {
   ['pairing', 'dropzone', 'selection', 'progress-panel', 'result'].forEach(
     (key) => ($(key).hidden = key !== id),
   );
+  // Move keyboard focus only when its control disappears. Polling must never steal it.
+  if (moveFocus && active.closest('[data-panel]')) {
+    const destination = $(id).querySelector('h3, button:not([disabled]), strong');
+    if (destination) {
+      destination.tabIndex = destination.matches('button') ? 0 : -1;
+      destination.focus({ preventScroll: true });
+    }
+  }
 }
 function selected(next) {
   if (!online || pending || upload) return;
@@ -82,13 +101,16 @@ zone.addEventListener('drop', (e) => {
 });
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
-function result(title, detail, success = false) {
+function result(title, detail, state = 'ready') {
   panel('result');
   setText('result-title', title);
   setText('result-detail', detail);
-  $('result-icon').textContent = success ? '✓' : '↗';
-  $('result').dataset.state = success ? 'success' : 'waiting';
-  $('again').hidden = true;
+  setText(
+    'result-icon',
+    state === 'installed' || state === 'waiting' ? '✓' : state === 'failed' ? '!' : '↗',
+  );
+  if ($('result').dataset.state !== state) $('result').dataset.state = state;
+  $('again').hidden = !['installed', 'failed', 'waiting'].includes(state);
 }
 $('send').onclick = () => {
   if (!file || !online || upload) return;
@@ -182,13 +204,25 @@ function pairing(state) {
   );
   $('retry-connection').hidden = state !== 'denied';
 }
+async function request(path, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch(path, { ...options, signal: controller.signal });
+    // Keep the probe bounded until its small status body arrives as well as headers.
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 async function connect(retry = false) {
-  const response = await fetch(retry ? '/api/retry' : '/api/connect', {
+  const response = await request(retry ? '/api/retry' : '/api/connect', {
     method: 'POST',
     headers: accessHeaders(),
   });
   if (!response.ok) throw new Error('disconnected');
-  const data = await response.json();
+  const data = response.data;
   if (data.credential) {
     credential = data.credential;
     try {
@@ -205,19 +239,18 @@ async function poll() {
   if (polling) return;
   polling = true;
   try {
-    const response = await fetch('/api/status', {
+    const response = await request('/api/status', {
       headers: accessHeaders(),
       cache: 'no-store',
-      signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined,
     });
     if (response.status === 403) {
-      const data = await response.json();
+      const data = response.data;
       if (data.connection === 'unknown') await connect();
       else pairing(data.connection);
       return;
     }
     if (!response.ok) throw new Error('disconnected');
-    const data = await response.json();
+    const data = response.data;
     if (!online) {
       message();
       if (!pending && !upload) panel(file ? 'selection' : 'dropzone');
@@ -240,14 +273,10 @@ async function poll() {
         failed: ['Let’s try that again', data.detail],
       };
       const content = states[data.state] || ['Check your watch.', data.detail];
-      result(content[0], content[1], data.state === 'installed');
-      $('result').dataset.state = data.state;
-      if (['installed', 'failed'].includes(data.state)) $('again').hidden = false;
-      if (data.state === 'failed') $('result-icon').textContent = '!';
+      result(content[0], content[1], data.state);
     } else if (pending) {
       ((pending = false), (choosingNext = false));
-      result('Ready for another?', 'Your watch is ready to receive a new app.', true);
-      $('again').hidden = false;
+      result('Ready for another?', 'Your watch is ready to receive a new app.', 'waiting');
     }
   } catch {
     online = false;

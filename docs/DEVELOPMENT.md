@@ -70,3 +70,15 @@ The resulting APK is about 66 MiB. `--bytes` can select another asset size based
 ```
 
 Hardware testing is a final compatibility/power gate, documented in VALIDATION.md, rather than a routine development requirement.
+
+## Release-candidate review
+
+After the complete debug/test/release build and `./gradlew :app:lintDebug :app:lintRelease`, run `python3 scripts/check-release.py`. It saves an artifact digest, packaging/manifest results, lint warnings and publication gates under `app/build/reports/validation/release-audit.json`. This check does not submit an app or verify an upload certificate.
+
+For large-file receipt followed by real process-death recovery, use:
+
+```sh
+python3 scripts/test-emulators.py --watch emulator-5554 --browser emulator-5556 --large --restart --skip-build
+```
+
+The restart option backgrounds and kills only the selected emulator’s debug Pakkit process with `run-as`. It confirms the received review survives, receiving must be explicitly restarted and port 8787 is reused. Do not overlap instrumentation and `uiautomator` commands on the same emulator. The suite includes a real watch Install action and Android Install/Update confirmation; it leaves the disposable QA fixture installed. The ongoing-notification test grants optional notification access on the emulator and retains it to avoid killing the running instrumentation process. Source permission is still exercised through the normal system setting, never a test grant.

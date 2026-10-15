@@ -15,6 +15,68 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class InstallSafetyTest : WatchTest() {
     @Test
+    fun watchActionAndSystemConfirmationCompleteInstallation() {
+        assumeTrue(context.packageManager.canRequestPackageInstalls())
+        val apk = fixture()
+        store.stage(apk)
+        openWatch()
+        instrumentation.runOnMainSync {
+            fun views(view: android.view.View): List<android.view.View> =
+                listOf(view) +
+                    if (view is android.view.ViewGroup)
+                        (0 until view.childCount).flatMap { views(view.getChildAt(it)) }
+                    else emptyList()
+            views(requireNotNull(activity).window.decorView)
+                .filterIsInstance<android.widget.Button>()
+                .single { it.text == "Install" }
+                .performClick()
+        }
+        await(15_000) { store.pending()?.state == InstallState.CONFIRM }
+        // Exercise the real system button. No shell install or source-permission grant.
+        var consentClicked = false
+        try {
+            await(15_000) {
+                if (consentClicked) return@await true
+                val root = instrumentation.uiAutomation.rootInActiveWindow
+                val button =
+                    root
+                        ?.let { node ->
+                            listOf("Install", "Update").flatMap {
+                                node.findAccessibilityNodeInfosByText(it)
+                            }
+                        }
+                        ?.firstOrNull {
+                            it.text?.toString() in setOf("Install", "Update") &&
+                                it.isClickable &&
+                                it.isEnabled &&
+                                it.packageName?.toString() != context.packageName
+                        }
+                consentClicked =
+                    button?.performAction(
+                        android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK
+                    ) == true
+                consentClicked
+            }
+        } catch (failure: Exception) {
+            fun labels(node: android.view.accessibility.AccessibilityNodeInfo): List<String> =
+                listOf(
+                    "${node.packageName}: ${node.text} / ${node.contentDescription} clickable=${node.isClickable}"
+                ) +
+                    (0 until node.childCount).flatMap {
+                        node.getChild(it)?.let(::labels) ?: emptyList()
+                    }
+            println(instrumentation.uiAutomation.rootInActiveWindow?.let(::labels))
+            throw failure
+        }
+        await(30_000) {
+            store.pending()?.state in setOf(InstallState.INSTALLED, InstallState.FAILED)
+        }
+        assertEquals(store.pending()?.detail, InstallState.INSTALLED, store.pending()?.state)
+        assertFalse(store.file(apk.id).exists())
+        assertNull(PendingApproval.intent)
+    }
+
+    @Test
     fun receiptAndForgedCallbacksCannotMarkPackageInstalled() {
         val apk = fixture()
         store.stage(apk)

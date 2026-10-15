@@ -11,7 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 object WatchColors {
-    const val canvas = 0xFF090B17.toInt()
+    const val canvas = Color.BLACK
     const val raised = 0xFF1C2035.toInt()
     const val text = 0xFFF4F2FF.toInt()
     const val secondary = 0xFFB7B6CE.toInt()

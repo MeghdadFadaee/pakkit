@@ -10,7 +10,7 @@ Pakkit is a Wear OS application that serves its bundled HTML/CSS/JavaScript inte
 | `data` | Private files and one durable package review |
 | `install` | User-requested Android sessions, system consent and verified installer callbacks |
 
-There is no frontend build step, CDN, cloud relay, account or transfer backend. ZXing Core is the only explicit runtime library. `qa/fixture` supplies a signed test APK to instrumentation only; browser tools and large generated fixtures never ship.
+There is no frontend build step, CDN, cloud relay, account or transfer backend. ZXing Core generates QR codes. AndroidX Core, Wear Ongoing and SplashScreen supply platform notification and launch behavior. `qa/fixture` supplies a signed test APK to instrumentation only; browser tools and large generated fixtures never ship.
 
 ## Receiving lifecycle
 
@@ -43,3 +43,9 @@ Only a watch action starts ApkInstaller. Returning from granting source permissi
 MODE_FULL_INSTALL and USER_ACTION_REQUIRED preserve supported system consent. The non-exported receiver accepts only the active job, matching non-null session ID and expected state. When Pakkit is visible, Android's returned consent intent opens once automatically; Continue is available for recovery. Optional notification denial does not block in-app approval. Native INSTALLED state only follows Android STATUS_SUCCESS.
 
 See [restriction rationale](RESTRICTIONS.md), [platform constraints](PLATFORM.md) and [validation](VALIDATION.md) for the distinction between product behavior and OS/distribution requirements.
+
+## Platform presentation and disclosures
+
+Watch upload progress mutates existing views so rotary and accessibility focus survive updates. AndroidX SplashScreen supplies Wear launch sizing. ReceiveService attaches a Wear OngoingActivity to its foreground notification; actual phase changes schedule a coalesced notification update, with no repeating idle timer. The static indicator and content intent return to the live receiving flow. Notification denial leaves in-app receiving available.
+
+AboutActivity is private and exposes bundled privacy text and third-party notices with receiving off. The web server’s fixed asset allowlist additionally exposes `/privacy.txt` and `/licenses.txt`; those routes reveal no package or access data. The launcher accepts no installer approval extras. A valid private installer callback owns in-memory PendingApproval; after process loss, the watch offers an explicit retry.

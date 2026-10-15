@@ -13,13 +13,17 @@ let state = 'waiting',
   bytesReceived = 0,
   disconnected = false,
   approved = true,
-  denied = false;
+  denied = false,
+  connectStalled = false,
+  statusBodyStalled = false;
 const server = http.createServer(async (request, response) => {
   response.setHeader('Cache-Control', 'no-store');
   const routes = {
     '/': ['index.html', 'text/html'],
     '/app.js': ['app.js', 'text/javascript'],
     '/style.css': ['style.css', 'text/css'],
+    '/privacy.txt': ['../legal/privacy.txt', 'text/plain'],
+    '/licenses.txt': ['../legal/licenses.txt', 'text/plain'],
   };
   if (routes[request.url]) {
     const [file, type] = routes[request.url];
@@ -29,6 +33,7 @@ const server = http.createServer(async (request, response) => {
   }
   response.setHeader('Content-Type', 'application/json');
   if (request.url === '/api/connect' || request.url === '/api/retry') {
+    if (connectStalled) return;
     if (request.url === '/api/retry') denied = false;
     response.end(
       JSON.stringify({
@@ -41,6 +46,10 @@ const server = http.createServer(async (request, response) => {
   } else if (!approved) {
     response.writeHead(403).end(JSON.stringify({ connection: denied ? 'denied' : 'pending' }));
   } else if (request.url === '/api/status') {
+    if (statusBodyStalled) {
+      response.flushHeaders();
+      return;
+    }
     if (disconnected) {
       response.writeHead(503).end('{}');
       return;
@@ -106,6 +115,11 @@ const server = http.createServer(async (request, response) => {
         await page.close();
       }
     }
+    const privacy = await (await fetch(origin + '/privacy.txt')).text();
+    assert.match(privacy, /without encryption/);
+    assert.match(privacy, /private watch storage/);
+    assert.match(await (await fetch(origin + '/licenses.txt')).text(), /Apache License/);
+    checks++;
     const context = await browser.newContext();
     const page = await context.newPage();
     const errors = [];
@@ -170,6 +184,11 @@ const server = http.createServer(async (request, response) => {
     failure = false;
     await page.getByRole('button', { name: 'Send to watch' }).click();
     await page.getByRole('heading', { name: 'Made it to your watch' }).waitFor();
+    assert.equal(
+      await page.locator('#result-title').evaluate((el) => el === document.activeElement),
+      true,
+      'Upload completion moves focus out of the hidden cancel control',
+    );
     assert.equal(bytesReceived, file.buffer.length);
     state = 'confirm';
     await page.getByRole('heading', { name: 'One tap closer' }).waitFor();
@@ -181,6 +200,14 @@ const server = http.createServer(async (request, response) => {
     checks++;
     state = 'installed';
     await page.getByRole('heading', { name: 'Looks good on you.' }).waitFor();
+    await page.getByRole('button', { name: 'Send another app' }).focus();
+    await new Promise((resolve) => setTimeout(resolve, 1700));
+    assert.equal(
+      await page.locator('#again').evaluate((el) => el === document.activeElement),
+      true,
+      'Status polling preserves the result action focus',
+    );
+    checks++;
     await page.getByRole('button', { name: 'Send another app' }).click();
     await page.locator('#file').setInputFiles(file);
     await new Promise((resolve) => setTimeout(resolve, 1700));
@@ -227,6 +254,26 @@ const server = http.createServer(async (request, response) => {
       await page.locator('.parcel').evaluate((el) => getComputedStyle(el).animationName),
       'none',
     );
+    checks++;
+
+    const chosenTheme = await page.evaluate(() => document.documentElement.dataset.theme);
+    await page.reload();
+    await page.getByText('Connected to your watch', { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), chosenTheme);
+    checks++;
+    // A stalled connection request must not hold the polling loop forever.
+    await page.evaluate(() => localStorage.removeItem('pakkitAccess'));
+    connectStalled = true;
+    await page.reload();
+    await page.getByText('Watch out of reach', { exact: true }).waitFor({ timeout: 10000 });
+    connectStalled = false;
+    await page.getByText('Connected to your watch', { exact: true }).waitFor({ timeout: 10000 });
+    checks++;
+
+    statusBodyStalled = true;
+    await page.getByText('Watch out of reach', { exact: true }).waitFor({ timeout: 10000 });
+    statusBodyStalled = false;
+    await page.getByText('Connected to your watch', { exact: true }).waitFor({ timeout: 10000 });
     checks++;
 
     hold = false;

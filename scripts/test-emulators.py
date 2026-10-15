@@ -13,8 +13,11 @@ parser.add_argument("--watch", required=True, help="Wear OS emulator serial, e.g
 parser.add_argument("--browser", help="Optional Android emulator serial with Chrome initialized")
 parser.add_argument("--small", action="store_true", help="Run round UI tests at 192dp and 1.3x font size")
 parser.add_argument("--skip-build", action="store_true")
+parser.add_argument("--restart", action="store_true", help="After browser receipt, kill the background debug process and verify review recovery")
 parser.add_argument("--large", action="store_true", help="Use app/build/qa/large-fixture.apk for the real browser upload")
 args = parser.parse_args()
+if args.restart and not args.browser:
+    parser.error("--restart requires --browser.")
 if args.browser == args.watch:
     parser.error("Use distinct Wear OS and Android browser emulator serials.")
 for serial in filter(None, [args.watch, args.browser]):
@@ -52,7 +55,7 @@ try:
     print(output, flush=True)
     screenshots = report_dir / ("watch-product-small" if args.small else "watch-product")
     screenshots.mkdir(exist_ok=True)
-    for name in ["home", "scan", "browser-approval", "sending", "checking", "ready", "installing", "confirm", "failed", "installed"]:
+    for name in ["home", "privacy", "scan", "browser-approval", "sending", "checking", "ready", "installing", "confirm", "failed", "installed"]:
         image = adb(args.watch, "exec-out", "cat", f"/sdcard/Android/data/meghdad.pakkit/files/product-review/{name}.png")
         (screenshots / f"{name}.png").write_bytes(image)
 
@@ -96,8 +99,19 @@ if args.browser:
             if browser_test.poll() is None:
                 browser_test.terminate()
                 browser_test.wait(timeout=10)
+        if args.restart:
+            # Kill only this debug app, in the background, on the explicitly selected emulator.
+            adb(args.watch, "shell", "input", "keyevent", "KEYCODE_HOME")
+            pid = adb(args.watch, "shell", "pidof", "meghdad.pakkit").decode().strip()
+            if not pid.isdecimal():
+                raise RuntimeError("Expected one Pakkit debug process.")
+            adb(args.watch, "shell", "run-as", "meghdad.pakkit", "kill", "-9", pid)
         adb(args.watch, "shell", "am", "start", "-W", "-n", "meghdad.pakkit/.ui.WatchActivity")
         tap_text(args.watch, "Remove file")
+        if args.restart:
+            tap_text(args.watch, "Start receiving")
+            assert session_url(args.watch).endswith(":8787/")
+            (report_dir / "process-recovery.txt").write_text("PASS: background process killed after signed APK receipt; private review recovered, receiving required an explicit restart, fixed port reused.\n")
         tap_text(args.watch, "Stop receiving")
     finally:
         if args.large:

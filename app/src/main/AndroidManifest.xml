@@ -23,12 +23,14 @@
             android:name=".ui.WatchActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:theme="@style/Theme.Pakkit.Starting"
             android:taskAffinity="">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".ui.AboutActivity" android:exported="false" android:taskAffinity="" />
         <service
             android:name=".transfer.ReceiveService"
             android:exported="false"

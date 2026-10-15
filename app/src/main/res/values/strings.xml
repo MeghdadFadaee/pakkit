@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="watch_privacy">Privacy</string>
+    <string name="watch_licenses">Open-source licenses</string>
     <string name="watch_end_session">Stop receiving</string>
     <string name="watch_just_checking">Just checking…</string>
     <string name="watch_on_its_way">On its way</string>

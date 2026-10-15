@@ -5,7 +5,7 @@
 Publish the app module’s Wear OS AAB: application ID `meghdad.pakkit`, version 0.3.0/code 100004, min 31/target 36/compile 36.1. It declares required watch hardware and standalone=true. Increment versionCode for each upload. R 8 and resource shrinking are enabled.
 
 ```sh
-./gradlew :app:bundleRelease
+./gradlew :app:bundleRelease :app:lintDebug :app:lintRelease
 ```
 
 Output: app/build/outputs/bundle/release/app-release.aab. Production signing uses PAKKIT_KEYSTORE, PAKKIT_KEYSTORE_PASSWORD, PAKKIT_KEY_ALIAS and PAKKIT_KEY_PASSWORD. Set all four; incomplete/blank signing configuration fails clearly. With all unset, the bundle is unsigned and must be signed through the release pipeline. Keep keys and passwords outside source control. Application ID and private review schema are stable across updates; source class/package refactoring does not require data migration.
@@ -16,12 +16,14 @@ Output: app/build/outputs/bundle/release/app-release.aab. Production signing use
 | -------------------------------------------------------- | ------------------------------------------------------------------------- |
 | INTERNET                                                 | Local listener and HTTP responses                                         |
 | ACCESS_NETWORK_STATE / CHANGE_NETWORK_STATE              | Request/watch the Wi-Fi network and handle connectivity lifecycle         |
-| WAKE_LOCK                                                | Timed partial CPU lock during a receiving session                         |
+| WAKE_LOCK                                                | Partial CPU lock only while streaming/inspecting an upload; released in finally                         |
 | FOREGROUND_SERVICE / FOREGROUND_SERVICE_CONNECTED_DEVICE | Explicit local receiving service with stop action                         |
 | REQUEST_INSTALL_PACKAGES                                 | Watch-initiated system installation after review                          |
 | POST_NOTIFICATIONS                                       | Optional session/approval alerts; in-app consent remains usable if denied |
 
-No package-visibility queries, broad storage, location, Bluetooth, boot receiver or unrestricted installed-app enumeration is required. Inspect merged release permissions and verify fixture/test assets are absent. Release runtime dependencies are ZXing Core and the Kotlin standard library with its annotations dependency; browser development tools are separate.
+No package-visibility queries, broad storage, location, Bluetooth, boot receiver or unrestricted installed-app enumeration is required. Inspect merged release permissions and verify fixture/test assets are absent. Release runtime dependencies include ZXing Core, AndroidX Core/Wear Ongoing/SplashScreen and their transitive support libraries, plus Kotlin. Browser development tools are separate. AndroidX adds a signature-only dynamic-receiver permission, a private profile-initialization provider and a DUMP-protected profile receiver. These are audited in the merged manifest.
+
+Run `python3 scripts/check-release.py` after building to validate release packaging and save a bundle digest. See [final product review](PRODUCT_REVIEW.md) for current policy sources, the publication decision and [store copy](STORE_LISTING.md).
 
 ## Publication gates
 

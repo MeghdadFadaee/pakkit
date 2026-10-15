@@ -1,6 +1,5 @@
 package meghdad.pakkit.transfer
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -14,10 +13,14 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Handler
 import android.os.Looper
+import androidx.core.app.NotificationCompat
+import androidx.wear.ongoing.OngoingActivity
+import androidx.wear.ongoing.Status
 import java.net.BindException
 import java.net.Inet4Address
 import java.net.InetAddress
 import meghdad.pakkit.R
+import meghdad.pakkit.data.PackageStore
 import meghdad.pakkit.ui.WatchActivity
 
 /** User-controlled receiving; network loss suspends the listener, never the user's intent. */
@@ -29,6 +32,16 @@ class ReceiveService : Service() {
     private var address: InetAddress? = null
     private var registered = false
     private var ended = false
+    private lateinit var notification: NotificationCompat.Builder
+    private lateinit var ongoing: OngoingActivity
+    private var notificationState = ""
+    private val store by lazy { PackageStore(this) }
+    private val notificationUpdate = Runnable { updateNotification() }
+    private val sessionObserver: () -> Unit = { scheduleNotification() }
+    private val reviewObserver =
+        android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == PackageStore.PENDING_KEY || key == null) main.post { scheduleNotification() }
+        }
     private val access = BrowserAccess { request ->
         Receiving.update(this) { it.copy(browserRequest = request) }
     }
@@ -76,7 +89,10 @@ class ReceiveService : Service() {
             finish("Receiving stopped")
             return START_NOT_STICKY
         }
-        if (registered || ended) return START_NOT_STICKY
+        if (registered || ended) {
+            if (!ended) scheduleNotification()
+            return START_NOT_STICKY
+        }
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel("receive", "App transfers", NotificationManager.IMPORTANCE_LOW)
@@ -95,20 +111,29 @@ class ReceiveService : Service() {
                 Intent(this, ReceiveService::class.java).setAction(STOP),
                 PendingIntent.FLAG_IMMUTABLE,
             )
-        val notification =
-            Notification.Builder(this, "receive")
+        notification =
+            NotificationCompat.Builder(this, "receive")
                 .setSmallIcon(R.drawable.pakkit_mark)
                 .setContentTitle("Receiving is on")
                 .setContentText("Open Pakkit to connect your browser.")
                 .setContentIntent(open)
                 .setOngoing(true)
-                .addAction(Notification.Action.Builder(null, "Stop receiving", stop).build())
+                .setOnlyAlertOnce(true)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .addAction(0, getString(R.string.watch_end_session), stop)
+        ongoing =
+            OngoingActivity.Builder(this, NOTIFICATION, notification)
+                .setStaticIcon(R.drawable.pakkit_mark)
+                .setTouchIntent(open)
                 .build()
+        ongoing.apply(this)
         startForeground(
             NOTIFICATION,
-            notification,
+            notification.build(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
         )
+        Receiving.observe(sessionObserver)
+        store.preferences.registerOnSharedPreferenceChangeListener(reviewObserver)
         Receiving.begin(this, access)
         try {
             registered = true
@@ -125,6 +150,52 @@ class ReceiveService : Service() {
         }
         // A killed process does not silently reopen network access. The user starts it again.
         return START_NOT_STICKY
+    }
+
+    private fun scheduleNotification() {
+        // Coalesce quick phase changes and stay below the system's notification rate limit.
+        // No repeating idle timer; the latest state is read only after an actual change.
+        if (!ended && !main.hasCallbacks(notificationUpdate))
+            main.postDelayed(notificationUpdate, 1000)
+    }
+
+    private fun updateNotification() {
+        if (ended || !::ongoing.isInitialized) return
+        if (
+            android.os.Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+        )
+            return
+        val live = Receiving.state
+        val job = store.pending()
+        val (title, detail) =
+            when {
+                live.browserRequest != null ->
+                    "Connect browser?" to "Open Pakkit to approve this browser."
+                live.total > 0 -> "Your app is on its way" to "Open Pakkit to follow the transfer."
+                job != null ->
+                    when (job.state) {
+                        meghdad.pakkit.apk.InstallState.READY ->
+                            "Ready to install" to "Review ${job.apk.label} on your watch."
+                        meghdad.pakkit.apk.InstallState.CONFIRM ->
+                            "Ready for your approval" to "Open Pakkit to continue."
+                        meghdad.pakkit.apk.InstallState.INSTALLING ->
+                            "Getting ready" to "Your watch will ask you to approve installation."
+                        meghdad.pakkit.apk.InstallState.INSTALLED ->
+                            "All yours." to "${job.apk.label} is ready to wear."
+                        meghdad.pakkit.apk.InstallState.FAILED ->
+                            "Couldn’t install" to "Open Pakkit to try again."
+                    }
+                live.url == null ->
+                    "Waiting for Wi-Fi" to "Receiving will resume when your watch reconnects."
+                else -> "Receiving is on" to "Open Pakkit to connect your browser."
+            }
+        val state = "$title:$detail"
+        if (notificationState == state) return
+        notificationState = state
+        notification.setContentTitle(title).setContentText(detail)
+        ongoing.update(this, Status.forPart(Status.TextPart(detail)))
     }
 
     private fun open(network: Network, address: InetAddress) {
@@ -166,6 +237,8 @@ class ReceiveService : Service() {
 
     private fun release(message: String) {
         main.removeCallbacksAndMessages(null)
+        Receiving.removeObserver(sessionObserver)
+        store.preferences.unregisterOnSharedPreferenceChangeListener(reviewObserver)
         server?.close()
         server = null
         if (registered) runCatching { connectivity.unregisterNetworkCallback(callback) }

@@ -47,8 +47,13 @@ class PackageStore(context: Context) {
     fun dismiss(id: String) =
         synchronized(lock) {
             if (pending()?.id != id) return@synchronized
+            val previous = preferences.getString(PENDING_KEY, null)
+            if (!preferences.edit().remove(PENDING_KEY).commit()) {
+                if (!preferences.edit().putString(PENDING_KEY, previous).commit())
+                    android.util.Log.w("PakkitStore", "Could not persist removal rollback")
+                throw UserMessage("Couldn’t remove this app. Try again.")
+            }
             file(id).delete()
-            check(preferences.edit().remove(PENDING_KEY).commit())
         }
 
     /** Called at process startup, before any transfer can own an uncommitted file. */
